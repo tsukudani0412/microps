@@ -6,6 +6,8 @@
 #include "ip.h"
 #include "icmp.h"
 
+#include "colors.h"
+
 #define ICMP_BUFSIZ IP_PAYLOAD_SIZE_MAX
 
 struct icmp_hdr {
@@ -60,19 +62,20 @@ icmp_dump(const uint8_t *data, size_t len)
 
   flockfile(stderr);
   hdr = (struct icmp_hdr *)data;
-  fprintf(stderr, "    type: %u (%s)\n", hdr->type, icmp_type_ntoa(hdr->type));
-  fprintf(stderr, "    code: %u\n", hdr->code);
-  fprintf(stderr, "     sum: 0x%04x\n", ntoh16(hdr->sum));
+  fprintf(stderr, "%sICMP header dump\n",    CYAN);
+  fprintf(stderr, "    %stype%s: %u (%s)\n", MAZENTA, WHITE, hdr->type, icmp_type_ntoa(hdr->type));
+  fprintf(stderr, "    %scode%s: %u\n",      MAZENTA, WHITE, hdr->code);
+  fprintf(stderr, "     %ssum%s: 0x%04x\n",  MAZENTA, WHITE, ntoh16(hdr->sum));
 
   switch(hdr->type) {
   case ICMP_TYPE_ECHOREPLY:
   case ICMP_TYPE_ECHO:
     echo = (struct icmp_echo *)hdr;
-    fprintf(stderr, "      id: %u\n", ntoh16(echo->id));
-    fprintf(stderr, "     seq: %u\n", ntoh16(echo->seq));
+    fprintf(stderr, "      %sid%s: %u\n", MAZENTA, WHITE, ntoh16(echo->id));
+    fprintf(stderr, "     %sseq%s: %u\n", MAZENTA, WHITE, ntoh16(echo->seq));
     break;
   default:
-    fprintf(stderr, " values: 0x%08x\n", ntoh32(hdr->values));
+    fprintf(stderr, " %svalues%s: 0x%08x\n", MAZENTA, WHITE, ntoh32(hdr->values));
     break;
   }
 #ifdef HEXDUMP
@@ -100,7 +103,8 @@ icmp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct
     return;
   }
 
-  debugf("%s => %s, len=%zu", ip_addr_ntop(src, addr1, sizeof(addr1)), ip_addr_ntop(dst, addr2, sizeof(addr2)), len);
+  debugf("%s%s%s => %s%s%s, len=%zu", RED, ip_addr_ntop(src, addr1, sizeof(addr1)), WHITE, 
+      RED, ip_addr_ntop(dst, addr2, sizeof(addr2)), WHITE, len);
   icmp_dump(data, len);
   switch(hdr->type) {
   case ICMP_TYPE_ECHO:
@@ -133,7 +137,8 @@ icmp_output(uint8_t type, uint8_t code, uint32_t value, const uint8_t *data, siz
   memcpy(hdr + 1, data, len);
   hdr->sum = cksum16((uint16_t *)hdr, msg_len, 0);
 
-  debugf("%s => %s, len=%zu", ip_addr_ntop(src, addr1, sizeof(addr1)), ip_addr_ntop(dst, addr2, sizeof(addr2)), msg_len);
+  debugf("%s%s%s => %s%s%s, len=%zu", RED, ip_addr_ntop(src, addr1, sizeof(addr1)), WHITE,
+      RED, ip_addr_ntop(dst, addr2, sizeof(addr2)), WHITE, msg_len);
   icmp_dump((uint8_t *)hdr, msg_len);
   
   return ip_output(IP_PROTOCOL_ICMP, (uint8_t *)hdr, msg_len, src, dst);
