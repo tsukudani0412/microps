@@ -220,7 +220,7 @@ ip_input(const uint8_t *data, size_t len, struct net_device *dev)
   }
   sum = cksum16((uint16_t *)hdr, hlen, 0);
   if(sum != 0x0000) {
-    errorf("invalid checksum");
+    errorf("invalid checksum, sum=0x%04x, verify=0x%04x", ntoh16(hdr->sum), ntoh16(cksum16((uint16_t *)hdr, hlen, 0)));
     return;
   }
   offset = ntoh16(hdr->offset);
