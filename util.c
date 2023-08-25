@@ -29,11 +29,33 @@ lprintf(FILE *fp, int level, const char *file, int line, const char *func, const
     flockfile(fp);
     gettimeofday(&tv, NULL);
     strftime(timestamp, sizeof(timestamp), "%T", localtime_r(&tv.tv_sec, &tm));
-    n += fprintf(fp, "%s.%03d [%c] %s: ", timestamp, (int)(tv.tv_usec / 1000), level, func);
+    n += fprintf(fp, "%s.%03d ", timestamp, (int)(tv.tv_usec / 1000));
+    switch(level) {
+    case 'E':
+      n += fprintf(fp, RED);
+      break;
+    case 'W':
+      n += fprintf(fp, YELLOW);
+      break;
+    case 'I':
+      n += fprintf(fp, GREEN);
+      break;
+    case 'D':
+      n += fprintf(fp, MAZENTA);
+      break;
+    default:
+      break;
+    }
+    n += fprintf(fp, "[%c] ",level);
+    n += fprintf(fp, CYAN);
+    n += fprintf(fp, "%s: ", func);
+    n += fprintf(fp, WHITE);
     va_start(ap, fmt);
     n += vfprintf(fp, fmt, ap);
     va_end(ap);
+    n += fprintf(fp, GREEN);
     n += fprintf(fp, " (%s:%d)\n", file, line);
+    n += fprintf(fp, RESET);
     funlockfile(fp);
     return n;
 }
