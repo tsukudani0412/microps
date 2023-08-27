@@ -51,7 +51,7 @@ setup(void)
     errorf("net_run() failure");
     return -1;
   }
-return 0l
+  return 0;
 }
 
 
