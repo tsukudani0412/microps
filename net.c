@@ -53,7 +53,7 @@ net_device_register(struct net_device * dev)
   snprintf(dev->name, sizeof(dev->name), "net%d", dev->index);
   dev->next = devices;
   devices = dev;
-  infof("registered, dev=%s%s%s, type=0x%04x", GREEN, dev->name, WHITE, dev->type);
+  infof("registered, dev=" GREEN "%s" WHITE ", type=0x%04x", dev->name, dev->type);
   return 0;
 }
 
@@ -71,7 +71,7 @@ net_device_open(struct net_device * dev)
     }
   }
   dev->flags |= NET_DEVICE_FLAG_UP;
-  infof("dev=%s%s%s, state=%s", GREEN, dev->name, WHITE, NET_DEVICE_STATE(dev));
+  infof("dev=" GREEN "%s" WHITE ", state=%s", dev->name, NET_DEVICE_STATE(dev));
   return 0;
 }
 
@@ -89,7 +89,7 @@ net_device_close(struct net_device *dev)
     }
   }
   dev->flags &= ~NET_DEVICE_FLAG_UP;
-  infof("dev=%s%s%s, state=%s", GREEN, dev->name, WHITE, NET_DEVICE_STATE(dev));
+  infof("dev=" GREEN "%s" WHITE ", state=%s", dev->name, NET_DEVICE_STATE(dev));
   return 0;
 }
  
@@ -136,7 +136,7 @@ net_device_output(struct net_device *dev, uint16_t type, const uint8_t *data, si
     errorf("too long, dev=%s, mtu=%u, len=%zu", dev->name, dev->mtu, len);
     return -1;
   }
-  debugf("dev=%s%s%s, type=0x%04x, len=%zu", GREEN, dev->name, WHITE, type, len);
+  debugf("dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zu", dev->name, type, len);
   debugdump(data, len);
   if(dev->ops->transmit(dev, type, data, len, dst) == -1) {
     errorf("device transmit failure, dev=%s, len=%zu", dev->name, len);
@@ -187,7 +187,7 @@ net_input_handler(uint16_t type, const uint8_t *data, size_t len, struct net_dev
       entry->len = len;
       memcpy(entry->data, data, len);
       queue_push(&proto->queue, entry);
-      debugf("queue pushed (num:%u), dev=%s%s%s, type=0x%04x, len=%zu", proto->queue.num, GREEN, dev->name, WHITE, type, len);
+      debugf("queue pushed (num:%u), dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zu", proto->queue.num, dev->name, type, len);
       debugdump(data, len);
       intr_raise_irq(INTR_IRQ_SOFTIRQ);
       return 0;
@@ -209,7 +209,8 @@ net_softirq_handler(void)
       if(!entry) {
         break;
       }
-      debugf("queue popped (num:%u), dev=%s%s%s, type=0x%04x, len=%zu", proto->queue.num, GREEN, entry->dev->name, WHITE, proto->type, entry->len);
+      debugf("queue popped (num:%u), dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zu", 
+          proto->queue.num, entry->dev->name, proto->type, entry->len);
       debugdump(entry->data, entry->len);
       proto->handler(entry->data, entry->len, entry->dev);
       memory_free(entry);

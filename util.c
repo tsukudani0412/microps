@@ -29,7 +29,9 @@ lprintf(FILE *fp, int level, const char *file, int line, const char *func, const
     flockfile(fp);
     gettimeofday(&tv, NULL);
     strftime(timestamp, sizeof(timestamp), "%T", localtime_r(&tv.tv_sec, &tm));
+    n += fprintf(fp, YELLOW);
     n += fprintf(fp, "%s.%03d ", timestamp, (int)(tv.tv_usec / 1000));
+    n += fprintf(fp, WHITE);
     switch(level) {
     case 'E':
       n += fprintf(fp, RED);

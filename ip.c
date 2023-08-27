@@ -86,19 +86,19 @@ ip_dump(const uint8_t *data, size_t len)
   v = (hdr->vhl & 0xf0) >> 4;
   hl = hdr->vhl & 0x0f;
   hlen = hl << 2;
-  fprintf(stderr, "%sIP header dump\n", CYAN);
-  fprintf(stderr, "     %svhl%s: 0x%02x [v: %u, hl: %u (%u)]\n", MAZENTA, WHITE, hdr->vhl, v, hl, hlen);
-  fprintf(stderr, "     %stos%s: 0x%02x\n", MAZENTA, WHITE, hdr->tos);
+  fprintf(stderr, CYAN "IP header dump\n");
+  fprintf(stderr, "     " MAZENTA "vhl" WHITE ": 0x%02x [v: %u, hl: %u (%u)]\n", hdr->vhl, v, hl, hlen);
+  fprintf(stderr, "     " MAZENTA "tos" WHITE ": 0x%02x\n", hdr->tos);
   total = ntoh16(hdr->total);
-  fprintf(stderr, "   %stotal%s: %u (payload: %u)\n", MAZENTA, WHITE, total, total - hlen);
-  fprintf(stderr, "      %sid%s: %u\n", MAZENTA, WHITE, ntoh16(hdr->id));
+  fprintf(stderr, "   " MAZENTA "total" WHITE ": %u (payload: %u)\n", total, total - hlen);
+  fprintf(stderr, "      " MAZENTA "id" WHITE ": %u\n", ntoh16(hdr->id));
   offset = ntoh16(hdr->offset);
-  fprintf(stderr, "  %soffset%s: 0x%04x (flags=%x, offset=%u)\n", MAZENTA, WHITE, offset, (offset & 0xe000) >> 13, offset & 0x1fff);
-  fprintf(stderr, "     %sttl%s: %u\n", MAZENTA, WHITE, hdr->ttl);
-  fprintf(stderr, "%sprotocol%s: %u\n", MAZENTA, WHITE, hdr->protocol);
-  fprintf(stderr, "     %ssum%s: 0x%04x\n", MAZENTA, WHITE, ntoh16(hdr->sum));
-  fprintf(stderr, "     %ssrc%s: %s\n", MAZENTA, WHITE, ip_addr_ntop(hdr->src, addr, sizeof(addr)));
-  fprintf(stderr, "     %sdst%s: %s\n", MAZENTA, WHITE, ip_addr_ntop(hdr->dst, addr, sizeof(addr)));
+  fprintf(stderr, "  " MAZENTA "offset" WHITE ": 0x%04x (flags=%x, offset=%u)\n", offset, (offset & 0xe000) >> 13, offset & 0x1fff);
+  fprintf(stderr, "     " MAZENTA "ttl" WHITE ": %u\n", hdr->ttl);
+  fprintf(stderr, MAZENTA "protocol" WHITE ": %u\n", hdr->protocol);
+  fprintf(stderr, "     " MAZENTA "sum" WHITE ": 0x%04x\n", ntoh16(hdr->sum));
+  fprintf(stderr, "     " MAZENTA "src" WHITE ": " RED "%s\n" WHITE, ip_addr_ntop(hdr->src, addr, sizeof(addr)));
+  fprintf(stderr, "     " MAZENTA "dst" WHITE ": " RED "%s\n" WHITE, ip_addr_ntop(hdr->dst, addr, sizeof(addr)));
   funlockfile(stderr);
 }
 
@@ -232,7 +232,7 @@ ip_input(const uint8_t *data, size_t len, struct net_device *dev)
 
   iface = (struct ip_iface *)net_device_get_iface(dev, NET_IFACE_FAMILY_IP);
   if(!iface) {
-    errorf("net_device_get_iface() failure, dev=%s%s%s, family=%u", GREEN, dev->name, WHITE, NET_IFACE_FAMILY_IP);
+    errorf("net_device_get_iface() failure, dev=" GREEN "%s" WHITE ", family=%u", dev->name, NET_IFACE_FAMILY_IP);
     return;
   }
   if(hdr->dst != iface->unicast) {
@@ -242,10 +242,8 @@ ip_input(const uint8_t *data, size_t len, struct net_device *dev)
       }
     }
   }
-  debugf("dev=%s%s%s, iface=%s%s%s, protocol=%u, total=%u", 
-      GREEN, dev->name, WHITE,
-      RED, ip_addr_ntop(iface->unicast, addr, sizeof(addr)), WHITE, 
-      hdr->protocol, total);
+  debugf("dev=" GREEN " %s "WHITE", iface=" RED "%s" WHITE ", protocol=%u, total=%u", 
+      dev->name, ip_addr_ntop(iface->unicast, addr, sizeof(addr)), hdr->protocol, total);
   ip_dump(data, total);
 
   /* search registered ip protocols*/
@@ -297,10 +295,8 @@ ip_output_core(struct ip_iface *iface, uint8_t protocol, const uint8_t *data, si
   hdr->total = hton16(total);
   hdr->sum = cksum16((uint16_t *)hdr, hlen, 0);
   memcpy(hdr+1, data, len);
-  debugf("dev=%s%s%s, dst=%s%s%s, protocol=%u, len=%u",
-      GREEN, NET_IFACE(iface)->dev->name, WHITE,
-      RED, ip_addr_ntop(dst, addr, sizeof(addr)), WHITE, 
-      protocol, total);
+  debugf("dev=" GREEN "%s" WHITE ", dst=" RED "%s" WHITE ", protocol=%u, len=%u",
+      NET_IFACE(iface)->dev->name, ip_addr_ntop(dst, addr, sizeof(addr)), protocol, total);
   ip_dump(buf, total);
   return ip_output_device(iface, buf, total, dst);
 }

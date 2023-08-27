@@ -50,7 +50,7 @@ loopback_transmit(struct net_device *dev, uint16_t type, const uint8_t *data, si
   queue_push(&PRIV(dev)->queue, entry);
   num = PRIV(dev)->queue.num;
   mutex_unlock(&PRIV(dev)->mutex);
-  debugf("queue pushed (num:%u), dev=%s, type=0x%04x, len=%zd", num, dev->name, type, len);
+  debugf("queue pushed (num:%u), dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zd", num, dev->name, type, len);
   debugdump(data, len);
   intr_raise_irq(PRIV(dev)->irq);
   return 0;
@@ -69,7 +69,7 @@ loopback_isr(unsigned int irq, void *id)
     if(!entry) {
       break;
     }
-    debugf("queue popped (num:%u), dev=%s, type=0x%04x, len=%zd", PRIV(dev)->queue.num, dev->name, entry->type, entry->len);
+    debugf("queue popped (num:%u), dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zd", PRIV(dev)->queue.num, dev->name, entry->type, entry->len);
     debugdump(entry->data, entry->len);
     net_input_handler(entry->type, entry->data, entry->len, dev);
     memory_free(entry);
@@ -114,6 +114,6 @@ loopback_init(void)
     return NULL;
   }
   intr_request_irq(LOOPBACK_IRQ, loopback_isr, INTR_IRQ_SHARED, dev->name, dev);
-  debugf("initialized, dev=%s", dev->name);
+  debugf("initialized, dev=" GREEN "%s" WHITE, dev->name);
   return dev;
 }

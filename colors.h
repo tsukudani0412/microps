@@ -12,4 +12,3 @@
 
 #define RESET   "\x1b[49m\x1b[0m"
 
-

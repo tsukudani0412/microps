@@ -13,7 +13,7 @@
 static int
 dummy_transmit(struct net_device *dev, uint16_t type, const uint8_t *data, size_t len, const void *dst)
 {
-  debugf("dev=%s, type=0x%04x, len=%zu", dev->name, type, len);
+  debugf("dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zu", dev->name, type, len);
   debugdump(data, len);
   /* drop data */
   intr_raise_irq(DUMMY_IRQ);
@@ -23,7 +23,7 @@ dummy_transmit(struct net_device *dev, uint16_t type, const uint8_t *data, size_
 static int
 dummy_isr(unsigned int irq, void *id)
 {
-  debugf("irq=%u, dev=%s", irq, ((struct net_device *)id)->name);
+  debugf("irq=%u, dev=" GREEN "%s" WHITE, irq, ((struct net_device *)id)->name);
   return 0;
 }
 
@@ -51,6 +51,6 @@ dummy_init(void)
     return NULL;
   }
   intr_request_irq(DUMMY_IRQ, dummy_isr, INTR_IRQ_SHARED, dev->name, dev);
-  debugf("initialized, dev=%s", dev->name);
+  debugf("initialized, dev=" GREEN "%s" WHITE, dev->name);
   return dev;
 }
