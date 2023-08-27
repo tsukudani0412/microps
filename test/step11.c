@@ -50,7 +50,7 @@ setup(void)
     errorf("net_run() failure");
     return -1;
   }
-
+return 0;
 }
 
 
@@ -58,6 +58,7 @@ static int
 cleanup(void)
 {
   net_shutdown();
+  return 0;
 }
 
 int
@@ -75,10 +76,10 @@ main(int atgc, char *argv[])
   id = getgid() % UINT16_MAX;
   while(!terminate) {
     if(icmp_output(ICMP_TYPE_ECHO, 0, hton32(id << 16 | ++seq), test_data + offset, sizeof(test_data) - offset, src, dst) == -1) {
-      errorf("ip_output() failure");
+      errorf("icmp_output() failure");
       break;
     }
-    sleep(1);
+    sleep(3);
   }
   cleanup();
   return 0;
