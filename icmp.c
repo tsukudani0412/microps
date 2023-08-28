@@ -62,7 +62,7 @@ icmp_dump(const uint8_t *data, size_t len)
 
   flockfile(stderr);
   hdr = (struct icmp_hdr *)data;
-  fprintf(stderr, CYAN "ICMP header dump");
+  fprintf(stderr, CYAN "ICMP header dump\n" WHITE);
   fprintf(stderr, "    " MAZENTA "type" WHITE ": %u (" CYAN "%s" WHITE ")\n", hdr->type, icmp_type_ntoa(hdr->type));
   fprintf(stderr, "    " MAZENTA "code" WHITE ": %u\n",      hdr->code);
   fprintf(stderr, "     " MAZENTA "sum" WHITE ": 0x%04x\n",  ntoh16(hdr->sum));
