@@ -94,8 +94,10 @@ ether_tap_open(struct net_device *dev)
   }
   
   if(memcmp(dev->addr, ETHER_ADDR_ANY, ETHER_ADDR_LEN) == 0) {
-    errorf("ether_tap_addr() failure, dev=%s", dev->name);
-    return -1;
+    if(ether_tap_addr(dev) == -1) {
+      errorf("ether_tap_addr() failure, dev=%s", dev->name);  
+      return -1;
+    }
   }
   return 0;
 }
@@ -119,7 +121,7 @@ ether_tap_transmit(struct net_device *dev, uint16_t type, const uint8_t *buf, si
   return ether_transmit_helper(dev, type, buf, len, dst, ether_tap_write);
 }
 
-static size_t 
+static ssize_t 
 ether_tap_read(struct net_device *dev, uint8_t *buf, size_t size)
 {
   ssize_t len;

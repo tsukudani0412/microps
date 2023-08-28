@@ -29,7 +29,7 @@ ether_addr_pton(const char *p, uint8_t *n);
 extern char *
 ether_addr_ntop(const uint8_t *n, char *p, size_t size);
 
-typedef ssize_t (*ether_transmit_func_t)(struct net_device *dev, uint8_t *data, size_t len);
+typedef ssize_t (*ether_transmit_func_t)(struct net_device *dev, const uint8_t *payload, size_t len);
 typedef ssize_t (*ether_input_func_t)(struct net_device *dev, uint8_t *buf, size_t size);
 
 extern int
