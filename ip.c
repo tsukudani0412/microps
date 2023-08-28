@@ -242,7 +242,7 @@ ip_input(const uint8_t *data, size_t len, struct net_device *dev)
       }
     }
   }
-  debugf("dev=" GREEN " %s "WHITE", iface=" RED "%s" WHITE ", protocol=%u, total=%u", 
+  debugf("dev=" GREEN "%s" WHITE", iface=" RED "%s" WHITE ", protocol=%u, total=%u", 
       dev->name, ip_addr_ntop(iface->unicast, addr, sizeof(addr)), hdr->protocol, total);
   ip_dump(data, total);
 
