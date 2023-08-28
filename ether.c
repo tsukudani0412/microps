@@ -67,14 +67,14 @@ ether_dump(const uint8_t *frame, size_t flen)
       ether_addr_ntop(hdr->dst, addr, sizeof(addr)));
   fprintf(stderr, "  " MAZENTA "type" WHITE ": 0x%04x\n" WHITE, ntoh16(hdr->type));
 #ifdef HEXDUMP
-  hexdump(stderr, frame, len);
+  hexdump(stderr, frame, flen);
 #endif
   funlockfile(stderr);
 }
 
 
 int
-ether_transmit_helper(struct net_device *dev, uint16_t type, const uint8_t *data, size_t len, const void *dst, ether_transmit_func_t callback)
+ether_transmit_helper(struct net_device *dev, uint16_t type, const uint8_t *payload, size_t plen, const void *dst, ether_transmit_func_t callback)
 {
   uint8_t frame[ETHER_FRAME_SIZE_MAX] = {};
   struct ether_hdr *hdr;
@@ -84,13 +84,13 @@ ether_transmit_helper(struct net_device *dev, uint16_t type, const uint8_t *data
   memcpy(hdr->dst, dst, ETHER_ADDR_LEN);
   memcpy(hdr->src, dev->addr, ETHER_ADDR_LEN);
   hdr->type = hton16(type);
-  memcpy((uint8_t *)hdr+1, data, len);
-  if(len < ETHER_PAYLOAD_SIZE_MIN) {
-    pad = ETHER_PAYLOAD_SIZE_MIN - len;
+  memcpy(hdr+1, payload, plen);
+  if(plen < ETHER_PAYLOAD_SIZE_MIN) {
+    pad = ETHER_PAYLOAD_SIZE_MIN - plen;
   }
-  flen = sizeof(*hdr) + len + pad;
+  flen = sizeof(*hdr) + plen + pad;
   debugf("dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zu", dev->name, type, flen);
-  return callback(dev, frame, flen) == (ssize_t)flen ? 0:-1;
+  return callback(dev, frame, flen) == (ssize_t)flen ? 0 : -1;
 }
 
 int 

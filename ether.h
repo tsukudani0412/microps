@@ -33,7 +33,7 @@ typedef ssize_t (*ether_transmit_func_t)(struct net_device *dev, uint8_t *data, 
 typedef ssize_t (*ether_input_func_t)(struct net_device *dev, uint8_t *buf, size_t size);
 
 extern int
-ether_transmit_helper(struct net_device *dev, uint16_t type, const uint8_t *data, size_t len, const void *dst, ether_transmit_func_t callback);
+ether_transmit_helper(struct net_device *dev, uint16_t type, const uint8_t *payload, size_t plen, const void *dst, ether_transmit_func_t callback);
 extern int
 ether_input_helper(struct net_device *dev, ether_input_func_t callback);
 extern void

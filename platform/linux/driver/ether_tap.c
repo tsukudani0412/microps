@@ -108,7 +108,7 @@ ether_tap_close(struct net_device *dev)
 }
 
 static ssize_t 
-ether_tap_write(struct net_device *dev, uint16_t type, const uint8_t *frame, size_t flen)
+ether_tap_write(struct net_device *dev, const uint8_t *frame, size_t flen)
 {
   return write(PRIV(dev)->fd, frame, flen);
 }
