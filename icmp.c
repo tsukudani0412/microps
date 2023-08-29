@@ -75,7 +75,7 @@ icmp_dump(const uint8_t *data, size_t len)
     fprintf(stderr, "     " MAZENTA "seq" WHITE ": %u\n", ntoh16(echo->seq));
     break;
   default:
-    fprintf(stderr, " " MAZENTA "values" WHITE ": 0x%08x\n", ntoh32(hdr->values));
+    fprintf(stderr, "  " MAZENTA "values" WHITE ": 0x%08x\n", ntoh32(hdr->values));
     break;
   }
 #ifdef HEXDUMP
