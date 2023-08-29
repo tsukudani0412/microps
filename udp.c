@@ -239,7 +239,7 @@ udp_output(struct ip_endpoint *src, struct ip_endpoint *dst, const uint8_t *data
   debugf(RED "%s" WHITE ":" YELLOW "%d" WHITE " => " RED "%s" WHITE ":" YELLOW "%d" WHITE ", len=%zu (payload=%zu)",
       ip_addr_ntop(src->addr, ep1, sizeof(ep1)), ntoh16(hdr->src),
       ip_addr_ntop(dst->addr, ep2, sizeof(ep2)), ntoh16(hdr->dst),
-      len, len - sizeof(*hdr));
+      total, len);
   udp_dump((uint8_t *)hdr, total);
   if(ip_output(IP_PROTOCOL_UDP, (uint8_t *)hdr, total, src->addr, dst->addr) == -1) {
     errorf("ip_output() failure");
