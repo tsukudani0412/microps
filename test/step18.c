@@ -86,23 +86,22 @@ cleanup(void)
 int
 main(int atgc, char *argv[])
 {
-    struct ip_endpoint src, dst;
-    size_t offset = IP_HDR_SIZE_MIN + ICMP_HDR_SIZE;
+  struct ip_endpoint src, dst;
+  size_t offset = IP_HDR_SIZE_MIN + ICMP_HDR_SIZE;
 
-    if (setup() == -1) {
-        errorf("setup() failure");
-        return -1;
+  if(setup() == -1) {
+    errorf("setup() failure");
+    return -1;
+  }
+  ip_endpoint_pton("127.0.0.1:10000", &src);
+  ip_endpoint_pton("127.0.0.1:7", &dst);
+  while(!terminate) {
+    if(udp_output(&src, &dst, test_data + offset, sizeof(test_data) - offset) == -1) {
+      errorf("udp_output() failure");
+      break;
     }
-    ip_endpoint_pton("127.0.0.1:10000", &src);
-    ip_endpoint_pton("127.0.0.1:7", &dst);
-    while (!terminate) {
-        if (udp_output(&src, &dst, test_data + offset, sizeof(test_data) - offset) == -1) {
-            errorf("udp_output() failure");
-            break;
-        }
-        sleep(1);
-    }
-    cleanup();
-    return 0;
-
+    sleep(1);
+  }
+  cleanup();
+  return 0;
 }

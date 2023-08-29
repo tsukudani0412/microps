@@ -86,30 +86,30 @@ cleanup(void)
 int
 main(int atgc, char *argv[])
 {
-      int soc;
-    struct ip_endpoint local;
+  int soc;
+  struct ip_endpoint local;
 
-    if (setup() == -1) {
-        errorf("setup() failure");
-        return -1;
-    }
-    soc = udp_open();
-    if (soc == -1) {
-        errorf("udp_open() failure");
-        return -1;
-    }
-    ip_endpoint_pton("0.0.0.0:7", &local);
-    if (udp_bind(soc, &local) == -1) {
-        errorf("udp_bind() failure");
-        udp_close(soc);
-        return -1;
-    }
-    debugf("waiting for data...");
-    while (!terminate) {
-        sleep(1);
-    }
+  if(setup() == -1) {
+    errorf("setup() failure");
+    return -1;
+  }
+  soc = udp_open();
+  if(soc == -1) {
+    errorf("udp_open() failure");
+    return -1;
+  }
+  ip_endpoint_pton("0.0.0.0:7", &local);
+  if(udp_bind(soc, &local) == -1) {
+    errorf("udp_bind() failure");
     udp_close(soc);
-    cleanup();
-    return 0;
+    return -1;
+  }
+  debugf("waiting for data...");
+  while(!terminate) {
+    sleep(1);
+  }
+  udp_close(soc);
+  cleanup();
+  return 0;
 }
 
