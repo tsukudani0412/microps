@@ -261,7 +261,7 @@ ip_iface_register(struct net_device *dev, struct ip_iface *iface)
   ifaces = iface;
 
   // add connected route
-  ip_route_add(~(iface->netmask) & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
+  ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
 
   infof("registered: dev=%s, unicast=%s, netmask=%s, broadcast=%s", dev->name, 
       ip_addr_ntop(iface->unicast, addr1, sizeof(addr1)),

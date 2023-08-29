@@ -63,7 +63,7 @@ udp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct 
   pseudo.protocol = IP_PROTOCOL_UDP;
   pseudo.len = hton16(len);
   psum = ~cksum16((uint16_t *)&pseudo, sizeof(pseudo), 0);
-  if(cksum16((uint16_t *)&hdr, len, psum) != 0) {
+  if(cksum16((uint16_t *)hdr, len, psum) != 0) {
     errorf("checksum error: sum=0x%04x, verify=0x%04x", 
         ntoh16(hdr->sum), ntoh16(cksum16((uint16_t *)&hdr, len, -hdr->sum + psum)));
     return;
@@ -94,11 +94,13 @@ udp_output(struct ip_endpoint *src, struct ip_endpoint *dst, const uint8_t *data
   hdr->src = src->port;
   hdr->dst = dst->port;
   hdr->len = hton16(total);
+  hdr->sum = 0;
   memcpy(hdr + 1, data, len);
   pseudo.src = src->addr;
   pseudo.dst = dst->addr;
   pseudo.zero = 0;
-  pseudo.protocol =IP_PROTOCOL_UDP;
+  pseudo.len = hton16(total);
+  pseudo.protocol = IP_PROTOCOL_UDP;
   psum = ~cksum16((uint16_t *)&pseudo, sizeof(pseudo), 0);
   hdr->sum = cksum16((uint16_t *)hdr, total, psum);
   debugf(RED "%s" WHITE ":" YELLOW "%d" WHITE " => " RED "%s" WHITE ":" YELLOW "%d" WHITE ", len=%zu (payload=%zu)",
