@@ -304,7 +304,7 @@ int net_event_handler(void)
 void
 net_raise_event()
 {
-  intr_raise_irq(INTR_IRQ_SHARED);
+  intr_raise_irq(INTR_IRQ_EVENT);
 }
 
 int

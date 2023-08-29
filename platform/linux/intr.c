@@ -115,7 +115,7 @@ intr_thread(void *arg)
       net_timer_handler();
       break;
     default:
-      for(entry = irqs; entry;entry =  entry->next) {
+      for(entry = irqs; entry; entry =  entry->next) {
         if(entry->irq == (unsigned int)sig) {
           debugf("irq=%d, name=" GREEN "%s" WHITE, entry->irq, entry->name);
           entry->handler(entry->irq, entry->dev);
