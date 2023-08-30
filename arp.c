@@ -208,7 +208,7 @@ arp_request(struct net_iface *iface, ip_addr_t tpa)
   memcpy(request.tpa, &tpa, IP_ADDR_LEN);
 
   debugf("dev=" GREEN "%s" WHITE ", len=%zu", iface->dev->name, sizeof(request));
-  arp_dump((uint8_t *)&request, sizeof(request));
+//  arp_dump((uint8_t *)&request, sizeof(request));
   return net_device_output(iface->dev, ETHER_TYPE_ARP, (uint8_t *)&request, sizeof(request), iface->dev->broadcast);
 }
 
@@ -228,7 +228,7 @@ arp_reply(struct net_iface *iface, const uint8_t *tha, ip_addr_t tpa, const uint
   memcpy(reply.tpa, &tpa, IP_ADDR_LEN);
   debugf("dev=" GREEN "%s" WHITE ", opcode=%s(0x%04x), len=%zu", 
       iface->dev->name, arp_opcode_ntoa(reply.hdr.op), ntoh16(reply.hdr.op), sizeof(reply));
-  arp_dump((uint8_t *)&reply, sizeof(reply));
+//  arp_dump((uint8_t *)&reply, sizeof(reply));
   net_device_output(iface->dev, ETHER_TYPE_ARP, (uint8_t *)&reply, sizeof(reply), dst);
 }
 
@@ -262,7 +262,7 @@ arp_input(const uint8_t *data, size_t len, struct net_device *dev)
     return;
   }
   debugf("dev=" GREEN "%s" WHITE ", len=%zu", dev->name, len);
-  arp_dump(data, len);
+//  arp_dump(data, len);
   memcpy(&spa, msg->spa, sizeof(spa));
   memcpy(&tpa, msg->tpa, sizeof(tpa));
   mutex_lock(&mutex);

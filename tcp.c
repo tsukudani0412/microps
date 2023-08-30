@@ -250,7 +250,7 @@ tcp_output_segment(uint32_t seq, uint32_t ack, uint8_t flg, uint16_t wnd, uint8_
       ip_addr_ntop(local->addr, ep1, sizeof(ep1)), ntoh16(hdr->src),
       ip_addr_ntop(foreign->addr, ep2, sizeof(ep2)), ntoh16(hdr->dst),
       total, len);
-  tcp_dump((uint8_t *)hdr, total);
+//  tcp_dump((uint8_t *)hdr, total);
   if(ip_output(IP_PROTOCOL_TCP, (uint8_t *)hdr, total, local->addr, foreign->addr) == -1) {
     errorf("ip_output() failure");
     return -1;
@@ -522,7 +522,7 @@ tcp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct 
       ip_addr_ntop(dst, addr2, sizeof(addr2)), ntoh16(hdr->dst),
       len, len - sizeof(*hdr));
     debugf("");
-  tcp_dump(data, len);
+//  tcp_dump(data, len);
   local.addr = dst;
   local.port = hdr->dst;
   foreign.addr = src;
