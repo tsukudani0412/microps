@@ -331,11 +331,11 @@ net_shutdown(void)
 {
   struct net_device *dev;
 
+  intr_shutdown();
   debugf("close all devices....");
   for(dev = devices; dev; dev = dev->next) {
     net_device_close(dev);
   }
-  intr_shutdown();
   debugf("shutting down...");
 }
 

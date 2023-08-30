@@ -1,4 +1,4 @@
-PPS = 
+APPS = app/http.exe \
 
 DRIVERS = driver/dummy.o \
 					driver/loopback.o \
