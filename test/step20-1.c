@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <signal.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "util.h"
@@ -109,6 +110,7 @@ main(int atgc, char *argv[])
   }
   debugf("waiting for data...");
   while(!terminate) {
+    memset(&buf, 0, sizeof(buf));
     ret = udp_recvfrom(soc, buf, sizeof(buf), &foreign);
     if(ret == -1) {
       errorf("udp_recvfrom() failure");

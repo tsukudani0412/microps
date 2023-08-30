@@ -198,10 +198,10 @@ udp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct 
     errorf("memory_alloc() failure");
     return;
   }
-  entry->len = len;
+  entry->len = len - sizeof(*hdr);
   entry->foreign.addr = src;
   entry->foreign.port = hdr->src;
-  memcpy(entry + 1, hdr + 1, entry->len);
+  memcpy(entry->data, hdr + 1, entry->len);
   queue_push(&pcb->queue, entry);
   debugf("queue pushed: id=%d, num=%d", udp_pcb_id(pcb), pcb->queue.num);
   sched_wakeup(&pcb->ctx);
