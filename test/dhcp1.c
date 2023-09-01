@@ -8,6 +8,7 @@
 #include "util.h"
 #include "net.h"
 #include "ip.h"
+#include "dhcp.h"
 #include "icmp.h"
 #include "udp.h"
 #include "tcp.h"
@@ -90,31 +91,14 @@ cleanup(void)
 int
 main(int atgc, char *argv[])
 {
-  struct ip_endpoint local, foreign;
-  int soc;
-  uint8_t buf[2048];
-  ssize_t ret;
+  setup();
 
-  if(setup() == -1) {
-    errorf("setup() failure");
-    return -1;
-  }
-  ip_endpoint_pton("192.0.2.2:7", &local);
-  ip_endpoint_pton("192.0.2.1:10007", &foreign);
-  soc = tcp_open_rfc793(&local, &foreign, 1);
-  if(soc == -1) {
-    errorf("tcp_open_rfc793() failure");
-    return -1;
-  }
-  while(!terminate) {
-    ret = tcp_receive(soc, buf, sizeof(buf));
-    if(ret <= 0) {
-      break;
-    }
-    hexdump(stderr, buf, ret);
-    tcp_send(soc, buf, ret);
-  }
-  tcp_close(soc);
+
+  struct ip_iface *iface;
+  ip_addr_t local;
+  ip_addr_pton(ETHER_TAP_IP_ADDR, &local);
+  iface = ip_iface_select(local);
+  dhcp_begin(iface);
   cleanup();
   return 0;
 }

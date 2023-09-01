@@ -355,17 +355,17 @@ udp_sendto(int id, uint8_t *data, size_t len, struct ip_endpoint *foreign)
     return -1;
   }
   local.addr = pcb->local.addr;
-  if(local.addr == IP_ADDR_ANY) {
-    iface = ip_route_get_iface(foreign->addr);
-    if(!iface) {
-      errorf("iface not found that can reach foreign address, addr=%s", 
-          ip_addr_ntop(foreign->addr, addr, sizeof(addr)));
-      mutex_unlock(&mutex);
-      return -1;
-    }
-    local.addr = iface->unicast;
-    debugf("select local address, addr=" RED "%s" WHITE, ip_addr_ntop(local.addr, addr, sizeof(addr)));
-  }
+//  if(local.addr == IP_ADDR_ANY) {
+//    iface = ip_route_get_iface(foreign->addr);
+//    if(!iface) {
+//      errorf("iface not found that can reach foreign address, addr=%s", 
+//          ip_addr_ntop(foreign->addr, addr, sizeof(addr)));
+//      mutex_unlock(&mutex);
+//      return -1;
+//    }
+//    local.addr = iface->unicast;
+//    debugf("select local address, addr=" RED "%s" WHITE, ip_addr_ntop(local.addr, addr, sizeof(addr)));
+//  }
   if(!pcb->local.port) { // source port auto select
     for(p = UDP_SOURCE_PORT_MIN; p <= UDP_SOURCE_PORT_MAX; p++) {
       if(!udp_pcb_select(local.addr, hton16(p))) {
