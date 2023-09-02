@@ -90,7 +90,7 @@ ether_transmit_helper(struct net_device *dev, uint16_t type, const uint8_t *payl
   }
   flen = sizeof(*hdr) + plen + pad;
   debugf("dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zu", dev->name, type, flen);
-  ether_dump(frame, flen);
+  //ether_dump(frame, flen);
   return callback(dev, frame, flen) == (ssize_t)flen ? 0 : -1;
 }
 
@@ -116,7 +116,7 @@ ether_input_helper(struct net_device *dev, ether_input_func_t callback)
   }
   type = ntoh16(hdr->type);
   debugf("dev=" GREEN "%s" WHITE ", type=0x%04x, len=%zd", dev->name, type, flen);
-  ether_dump(frame, flen);
+  //ether_dump(frame, flen);
   return net_input_handler(type, (uint8_t *)(hdr+1), flen - sizeof(*hdr), dev);
 }
 

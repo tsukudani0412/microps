@@ -99,14 +99,14 @@ icmp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct
   }
   if(cksum16((uint16_t *)data, len, 0) != 0) {
     errorf("invalid icmp checksum, sum=0x%04x, verify=0x%04x", hdr->sum, cksum16((uint16_t *)data, len, 0));
-    icmp_dump(data, len);
+    //icmp_dump(data, len);
     return;
   }
 
   debugf(RED "%s" WHITE " => " RED "%s" WHITE ", len=%zu",
       ip_addr_ntop(src, addr1, sizeof(addr1)), 
       ip_addr_ntop(dst, addr2, sizeof(addr2)), len);
-  icmp_dump(data, len);
+  //icmp_dump(data, len);
   switch(hdr->type) {
   case ICMP_TYPE_ECHO:
     /* Responds with the address of the received interface. */
@@ -141,7 +141,7 @@ icmp_output(uint8_t type, uint8_t code, uint32_t value, const uint8_t *data, siz
   debugf(RED "%s" WHITE " => " RED "%s" WHITE ", len=%zu", 
       ip_addr_ntop(src, addr1, sizeof(addr1)),
       ip_addr_ntop(dst, addr2, sizeof(addr2)), msg_len);
-  icmp_dump((uint8_t *)hdr, msg_len);
+  //icmp_dump((uint8_t *)hdr, msg_len);
   
   return ip_output(IP_PROTOCOL_ICMP, (uint8_t *)hdr, msg_len, src, dst);
 }

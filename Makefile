@@ -11,6 +11,7 @@ OBJS = util.o \
 			 arp.o \
 			 udp.o \
 			 tcp.o \
+			 sock.o \
 
 TESTS = test/step0.exe \
 				test/step1.exe \

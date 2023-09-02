@@ -363,7 +363,7 @@ ip_input(const uint8_t *data, size_t len, struct net_device *dev)
   }
   debugf("dev=" GREEN "%s" WHITE", iface=" RED "%s" WHITE ", protocol=%u, total=%u", 
       dev->name, ip_addr_ntop(iface->unicast, addr, sizeof(addr)), hdr->protocol, total);
-  ip_dump(data, total);
+  //ip_dump(data, total);
 
   /* search registered ip protocols*/
   for(proto = protocols; proto; proto = proto->next) {
@@ -421,7 +421,7 @@ ip_output_core(struct ip_iface *iface, uint8_t protocol, const uint8_t *data, si
   debugf("dev=" GREEN "%s" WHITE ", dst=" RED "%s" WHITE ", nexthop=" RED "%s" WHITE ", protocol=%u, len=%u",
       NET_IFACE(iface)->dev->name, ip_addr_ntop(dst, addr1, sizeof(addr1)), 
       ip_addr_ntop(nexthop, addr2, sizeof(addr2)), protocol, total);
-  ip_dump(buf, total);
+  //ip_dump(buf, total);
   return ip_output_device(iface, buf, total, nexthop);
 }
 

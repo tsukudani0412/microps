@@ -11,8 +11,8 @@
 #include "util.h"
 #include "net.h"
 #include "ip.h"
-#include "icmp.h"
 #include "tcp.h"
+#include "sock.h"
 
 #include "driver/loopback.h"
 #include "driver/ether_tap.h"
@@ -82,8 +82,9 @@ setup(void)
   int
 main(int argc, char *argv[])
 {
-  struct ip_endpoint local;
-  int soc, port;
+  struct sockaddr_in local = { .sin_family=AF_INET }, foreign;
+  int soc, port, acc, foreignlen;
+  char addr[SOCKADDR_STR_LEN];
   FILE *fp;
   uint8_t inbuf[2048];
   char buf[2048];
@@ -120,7 +121,7 @@ main(int argc, char *argv[])
    */
   switch (argc) {
     case 3:
-      if (ip_addr_pton(argv[argc-2], &local.addr) == -1) {
+      if (ip_addr_pton(argv[argc-2], &local.sin_addr) == -1) {
         errorf("ip_addr_pton() failure, addr=%s", optarg);
         return -1;
       }
@@ -131,7 +132,7 @@ main(int argc, char *argv[])
         errorf("invalid port, port=%s", optarg);
         return -1;
       }
-      local.port = hton16(port);
+      local.sin_port = hton16(port);
       break;
     default:
       fprintf(stderr, "Usage: %s [addr] port\n", argv[0]);
@@ -147,35 +148,50 @@ main(int argc, char *argv[])
   /*
    *  Application Code
    */
+  soc = sock_open(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if(soc == -1) {
+    errorf("sock_open() failure");
+    return -1;
+  }
+  if(sock_bind(soc, (struct sockaddr *)&local, sizeof(local)) == -1) {
+    errorf("sock_bind() failure");
+    return -1;
+  }
+  if(sock_listen(soc, 5) == -1) {
+    errorf("sock_listen() failure");
+    return -1;
+  }
   while (!terminate) {
-    int recvsize = 0;
-    soc = tcp_open_rfc793(&local, NULL, 0);
-    if (soc == -1) {
-      errorf("tcp_open_rfc793() failure");
+    acc = sock_accept(soc, (struct sockaddr *)&foreign , &foreignlen);
+    if (acc == -1) {
+      errorf("tcp_accept() failure");
       return -1;
     }
-    recvsize = tcp_receive(soc, inbuf, sizeof(inbuf));
-    hexdump(stderr, inbuf, recvsize);
-    printf("%s", inbuf);
-    
-    //parse request
-    if(strcmp(strtok((char *)&inbuf, " "), "GET") == 0) {
-      char *path;
-      path = strtok(NULL, " ");
-      printf("==============================================================================================================\n");
-      printf("%s\n==============================================================================================================\n", path);
-      if(strcmp(path, "/") != 0) {
-        tcp_send(soc, (uint8_t *)err404, sizeof(err404));
-        tcp_close(soc);
-        continue;
+    infof("connection accepted, foreign=%s", sockaddr_ntop((struct sockaddr *)&foreign, addr, sizeof(addr)));
+
+    foreignlen = sock_recv(acc, inbuf, sizeof(inbuf));
+    if(foreignlen > 0) {
+      flockfile(stderr);
+      printf("===============================================================================================================\n");
+      printf("%s", inbuf);
+      printf("\n===============================================================================================================\n%u bytes\n", foreignlen);
+      funlockfile(stderr);
+      //parse request
+      if(strcmp(strtok((char *)&inbuf, " "), "GET") == 0) {
+        char *path;
+        path = strtok(NULL, " ");
+        if(strcmp(path, "/") == 0) {
+          sock_send(acc, buf, sizeof(buf));
+        } else {
+          sock_send(acc, err404, sizeof(err404));
+        }
+      } else {
+        tcp_send(acc, (uint8_t *)not_support501, sizeof(not_support501));
       }
-      tcp_send(soc, (uint8_t *)buf, sizeof(buf));
-      tcp_close(soc);
-    } else {
-      tcp_send(soc, (uint8_t *)not_support501, sizeof(not_support501));
-      tcp_close(soc);
     }
+    sock_close(acc);
   }
+  sock_close(soc);
   /*
    * Cleanup protocol stack
    */
