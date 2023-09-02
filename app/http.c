@@ -87,7 +87,7 @@ main(int argc, char *argv[])
   char addr[SOCKADDR_STR_LEN];
   FILE *fp;
   uint8_t inbuf[2048];
-  char buf[2048];
+  char buf[1024];
 
   memset(buf, 0, sizeof(buf));
   snprintf(buf, sizeof(buf),

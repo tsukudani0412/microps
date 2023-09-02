@@ -361,6 +361,7 @@ tcp_retransmit_queue_emit(void *arg, void *data)
   timeout = entry->last;
   timeval_add_usec(&timeout, entry->rto);
   if(timercmp(&now, &timeout, >)) {
+    debugf("TCP retransmit, seq=%d", entry->seq);
     tcp_output_segment(entry->seq, pcb->rcv.nxt, entry->flg, pcb->rcv.wnd, entry->data, entry->len, &pcb->local, &pcb->foreign);
     entry->last = now;
     entry->rto *= 2;
