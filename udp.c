@@ -184,7 +184,7 @@ udp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct 
       ip_addr_ntop(src, addr1, sizeof(addr1)), ntoh16(hdr->src),
       ip_addr_ntop(dst, addr2, sizeof(addr2)), ntoh16(hdr->dst),
       len, len - sizeof(*hdr));
-  udp_dump(data, len);
+  //udp_dump(data, len);
   mutex_lock(&mutex);
   pcb = udp_pcb_select(dst, hdr->dst);
   if(!pcb) {
@@ -240,7 +240,7 @@ udp_output(struct ip_endpoint *src, struct ip_endpoint *dst, const uint8_t *data
       ip_addr_ntop(src->addr, ep1, sizeof(ep1)), ntoh16(hdr->src),
       ip_addr_ntop(dst->addr, ep2, sizeof(ep2)), ntoh16(hdr->dst),
       total, len);
-  udp_dump((uint8_t *)hdr, total);
+  //udp_dump((uint8_t *)hdr, total);
   if(ip_output(IP_PROTOCOL_UDP, (uint8_t *)hdr, total, src->addr, dst->addr) == -1) {
     errorf("ip_output() failure");
     return -1;
@@ -355,17 +355,17 @@ udp_sendto(int id, uint8_t *data, size_t len, struct ip_endpoint *foreign)
     return -1;
   }
   local.addr = pcb->local.addr;
-//  if(local.addr == IP_ADDR_ANY) {
-//    iface = ip_route_get_iface(foreign->addr);
-//    if(!iface) {
-//      errorf("iface not found that can reach foreign address, addr=%s", 
-//          ip_addr_ntop(foreign->addr, addr, sizeof(addr)));
-//      mutex_unlock(&mutex);
-//      return -1;
-//    }
-//    local.addr = iface->unicast;
-//    debugf("select local address, addr=" RED "%s" WHITE, ip_addr_ntop(local.addr, addr, sizeof(addr)));
-//  }
+  if(local.addr == IP_ADDR_ANY) {
+    iface = ip_route_get_iface(foreign->addr);
+    if(!iface) {
+      errorf("iface not found that can reach foreign address, addr=%s", 
+          ip_addr_ntop(foreign->addr, addr, sizeof(addr)));
+      mutex_unlock(&mutex);
+      return -1;
+    }
+    local.addr = iface->unicast;
+    debugf("select local address, addr=" RED "%s" WHITE, ip_addr_ntop(local.addr, addr, sizeof(addr)));
+  }
   if(!pcb->local.port) { // source port auto select
     for(p = UDP_SOURCE_PORT_MIN; p <= UDP_SOURCE_PORT_MAX; p++) {
       if(!udp_pcb_select(local.addr, hton16(p))) {

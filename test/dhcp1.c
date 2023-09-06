@@ -59,7 +59,8 @@ setup(void)
     errorf("ether_tap_init() failure");
     return -1;
   }
-  iface = ip_iface_alloc(ETHER_TAP_IP_ADDR, ETHER_TAP_NETMASK);
+  //iface = ip_iface_alloc(ETHER_TAP_IP_ADDR, ETHER_TAP_NETMASK);
+  iface = ip_iface_alloc("0.0.0.0", "0.0.0.0");
   if(!iface) {
     errorf("ip_iface_alloc() failure");
     return -1;
@@ -74,6 +75,10 @@ setup(void)
   }
   if(net_run() == -1) {
     errorf("net_run() failure");
+    return -1;
+  }
+  if(dhcp_begin(iface) == -1) {
+    errorf("dhcp_begin() failure");
     return -1;
   }
 return 0;
@@ -92,13 +97,9 @@ int
 main(int atgc, char *argv[])
 {
   setup();
-
-
-  struct ip_iface *iface;
-  ip_addr_t local;
-  ip_addr_pton(ETHER_TAP_IP_ADDR, &local);
-  iface = ip_iface_select(local);
-  dhcp_begin(iface);
+  while(1) {
+    sleep(1);
+  }
   cleanup();
   return 0;
 }
