@@ -1,5 +1,7 @@
+#include <bits/types/struct_timeval.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 
@@ -8,7 +10,6 @@
 
 #include "util.h"
 #include "net.h"
-#include "arp.h"
 #include "dhcp.h"
 #include "ip.h"
 #include "udp.h"
@@ -20,13 +21,39 @@
 #define DHCP_SRC_PORT 68
 #define DHCP_DST_PORT 67
 
-#define DHCP_REQUEST_TIMEOUT 10
+#define DHCP_TIMEOUT 10
+
+#define DHCP_OP_REQUEST 1
+#define DHCP_OP_REPLY   2
+
+#define DHCP_OPT_REQ_IP    50
+#define DHCP_OPT_END       255
+
+/* DHCP MESSAGE */
+#define DHCP_OPT_MSG_TYPE  53
+
+#define DHCP_MSG_DISCOVER 1
+#define DHCP_MSG_OFFER    2
+#define DHCP_MSG_REQUEST  3
+#define DHCP_MSG_DECLINE  4
+#define DHCP_MSG_ACK      5
+#define DHCP_MSG_NAK      6
+#define DHCP_MSG_RELEASE  7
+#define DHCP_MSG_INFORM   8
+
+/* DHCP OPTION REQUEST */
+#define DHCP_OPT_PARAM_REQ 55
+
+#define DHCP_PARAM_SUBNET     1
+#define DHCP_PARAM_ROUTER     3
+#define DHCP_PARAM_LEASETIME 51
 
 #define DHCP_STATE_INIT       0
 #define DHCP_STATE_SELECTING  1
 #define DHCP_STATE_REQUESTING 2
-#define DHCP_STATE_RENEWING   3
-#define DHCP_STATE_REBINDING  4
+#define DHCP_STATE_BOUND      3
+#define DHCP_STATE_RENEWING   4
+#define DHCP_STATE_REBINDING  5
 
 #define DHCP_MAGIC_COOKIE 0x63825363
 
@@ -53,7 +80,12 @@ struct dhcp_hdr {
 struct dhcp_lease {
   struct dhcp_lease *next;
   int state;
+  int soc;
   uint32_t xid;
+  ip_addr_t siaddr;
+  ip_addr_t ciaddr;
+  ip_addr_t subnet;
+  ip_addr_t router;
   struct ip_iface *iface;
   struct timeval leasetime;
   struct timeval leasebegin;
@@ -94,119 +126,244 @@ dhcp_dump(const uint8_t *data, size_t len)
   funlockfile(stderr);
 }
 
-int
-dhcp_begin(struct ip_iface *iface) 
+int 
+dhcp_send(struct dhcp_lease *lease)
 {
-  struct dhcp_hdr *hdr, *recv;
-  struct dhcp_lease *lease;
-  struct ip_endpoint local, foreign;
-  int len, rlen;
+  struct dhcp_hdr *hdr;
+  struct ip_endpoint foreign;
+  int len;
 
+  foreign.addr = IP_ADDR_BROADCAST;
+  foreign.port = hton16(DHCP_DST_PORT);
+  
   hdr = memory_alloc(sizeof(*hdr)); // IP_PAYLOAD_SIZE_MAX - UDP header size
-  recv = memory_alloc(sizeof(*recv));
-  lease = memory_alloc(sizeof(*lease));
-  if(!hdr || !lease) {
+  if(!hdr) {
     errorf("memory_alloc() failure");
     return -1;
   }
-
   len = sizeof(*hdr);
 
   memset(hdr, 0, sizeof(*hdr));
   hdr->op = DHCP_OP_REQUEST;
   hdr->htype = DHCP_HRD_HTYPE_ETHER;
   hdr->hlen = ETHER_ADDR_LEN;
-  //hdr->xid = random();
-  hdr->xid = hton32(0x3903f326);
+  hdr->xid = lease->xid;
   hdr->flags = hton16(DHCP_FLAG_BROADCAST);
-  memcpy(hdr->chaddr, NET_IFACE(iface)->dev->addr, NET_IFACE(iface)->dev->hlen);
+  memcpy(hdr->chaddr, NET_IFACE(lease->iface)->dev->addr, NET_IFACE(lease->iface)->dev->hlen);
   hdr->cookie = hton32(DHCP_MGC_CKE);
-  hdr->options[0] = DHCP_OPT_MSG_TYPE;
-  hdr->options[1] = 1;
-  hdr->options[2] = DHCP_MSG_DISCOVER;
-  hdr->options[3] = DHCP_OPT_PARAM_REQ;
-  hdr->options[4] = 2;
-  hdr->options[5] = DHCP_PARAM_SUBNET;
-  hdr->options[6] = DHCP_PARAM_ROUTER;
-  hdr->options[7] = DHCP_OPT_END;
+  switch(lease->state) {
+  case DHCP_STATE_SELECTING:
+    hdr->options[0] = DHCP_OPT_MSG_TYPE;
+    hdr->options[1] = 1;
+    hdr->options[2] = DHCP_MSG_DISCOVER;
+    hdr->options[3] = DHCP_OPT_PARAM_REQ;
+    hdr->options[4] = 3;
+    hdr->options[5] = DHCP_PARAM_SUBNET;
+    hdr->options[6] = DHCP_PARAM_ROUTER;
+    hdr->options[7] = DHCP_PARAM_LEASETIME;
+    hdr->options[8] = DHCP_OPT_END;
+    debugf(YELLOW "DHCP DISCOVER" WHITE " sent");
+    break;
+  case DHCP_STATE_RENEWING:
+    foreign.addr = lease->siaddr;
+    /* fall through */
+  case DHCP_STATE_REQUESTING:
+  case DHCP_STATE_REBINDING:
+    hdr->ciaddr = lease->iface->unicast;
+    hdr->secs = lease->leasetime.tv_sec;
+    hdr->options[0] = DHCP_OPT_MSG_TYPE;
+    hdr->options[1] = 1;
+    hdr->options[2] = DHCP_MSG_REQUEST;
+    hdr->options[3] = DHCP_OPT_REQ_IP;
+    hdr->options[4] = IP_ADDR_LEN;
+    memcpy(&hdr->options[5], &lease->ciaddr, IP_ADDR_LEN);
+    hdr->options[9] = DHCP_OPT_END;
+    debugf(YELLOW "DHCP REQUEST" WHITE " sent");
+    break;
+  }
+  return udp_sendto(lease->soc, (uint8_t *)hdr, len, &foreign);
+}
 
-  lease->next = leases;
-  leases = lease;
-  lease->state = DHCP_STATE_SELECTING;
-  lease->xid = hdr->xid;
-  lease->iface = iface;
+int
+dhcp_recv(struct dhcp_lease *lease) 
+{
+  struct dhcp_hdr *hdr;
+  int len, leasesec;
+  struct timeval now;
 
-  ip_endpoint_pton("0.0.0.0:68", &local);
-  ip_endpoint_pton("255.255.255.255:67", &foreign);
-  int soc = udp_open();
-  if(soc == -1) {
+  hdr = memory_alloc(sizeof(*hdr)); 
+  if(!hdr) {
+    errorf("memory_alloc() failure");
+    return -1;
+  }
+  len = udp_recvfrom(lease->soc, (uint8_t *)hdr, sizeof(*hdr), NULL);
+  if(len == -1) {
+    return -1;
+  }
+  if(hdr->cookie != hton32(DHCP_MGC_CKE)) {
+    errorf("DHCP magic cookie not detected, invalid DHCP packet");
+    return -1;
+  }
+  if(hdr->xid != lease->xid) {
+    return -1;
+  }
+  switch(lease->state) {
+  case DHCP_STATE_SELECTING:
+    if(hdr->options[2] != DHCP_MSG_OFFER) {
+      return -1;
+    }
+    debugf(YELLOW "DHCP OFFER" WHITE " received");
+    lease->ciaddr = hdr->yiaddr;
+    lease->siaddr = hdr->siaddr;
+    // parse options
+    for(int i = 0; hdr->options[i] != 0xff; i = i+(hdr->options[i+1])+2) {
+      switch(hdr->options[i]) {
+      case DHCP_PARAM_SUBNET:
+        memcpy(&lease->subnet, &hdr->options[i+2], IP_ADDR_LEN);
+        break;
+      case DHCP_PARAM_ROUTER:
+        memcpy(&lease->router, &hdr->options[i+2], IP_ADDR_LEN);
+        break;
+      case DHCP_PARAM_LEASETIME:
+        gettimeofday(&now, NULL);
+        memcpy(&leasesec, &hdr->options[i+2], sizeof(leasesec));
+        lease->leasetime.tv_sec = hton32(leasesec);
+        lease->leasebegin = now;
+        break;
+      }
+    }
+    lease->state = DHCP_STATE_REQUESTING;
+    break;
+  case DHCP_STATE_REQUESTING:
+  case DHCP_STATE_RENEWING:
+  case DHCP_STATE_REBINDING:
+    switch(hdr->options[2]) {
+    case DHCP_MSG_ACK:
+      lease->state = DHCP_STATE_BOUND;
+      debugf(YELLOW "DHCP ACK" WHITE " received");
+      return 0;
+    case DHCP_MSG_NAK:
+      debugf("DHCP NAK received");
+      return -1;
+    default:
+      return -1;
+    }
+  }
+  return 0;
+}
+
+
+
+int
+dhcp_begin(struct ip_iface *iface) 
+{
+  struct dhcp_hdr *recv;
+  struct dhcp_lease *lease;
+  struct ip_endpoint local;
+  struct timeval now, diff, timeout;
+  int len, rlen;
+
+BEGIN:
+  recv = memory_alloc(sizeof(*recv));
+  lease = memory_alloc(sizeof(*lease));
+  if(!recv || !lease) {
+    errorf("memory_alloc() failure");
+    return -1;
+  }
+
+  // open udp socket
+  local.addr = IP_ADDR_ANY;
+  local.port = hton16(DHCP_SRC_PORT);
+  lease->soc = udp_open();
+  if(lease->soc == -1) {
     errorf("udp_open() failure");
     return -1;
   }
-  if(udp_bind(soc, &local) == -1) {
+  if(udp_bind(lease->soc, &local) == -1) {
     errorf("udp_bind() failure");
     return -1;
   }
-  udp_sendto(soc, (uint8_t *)hdr, len, &foreign);
-  debugf(YELLOW "DHCP DISCOVER" WHITE " sent");
+  lease->next = leases;
+  leases = lease;
+  lease->iface = iface;
+  lease->xid = random();
+  lease->state = DHCP_STATE_SELECTING;
+  
+  gettimeofday(&timeout, NULL);
+  timeout.tv_sec += DHCP_TIMEOUT;
 
-  // receive DHCP OFFER
-  rlen = udp_recvfrom(soc, (uint8_t *)recv, sizeof(*recv), NULL);
-  if(rlen == -1) {
-    return -1;
+  while(1) {
+    gettimeofday(&now, NULL);
+    if(timercmp(&now, &timeout, >)) {
+      errorf("DHCP timeout");
+      return -1;
+    }
+    if(dhcp_send(lease) == -1) {
+      goto BEGIN;
+    }
+    dhcp_recv(lease);
+    if(lease->state == DHCP_STATE_BOUND) {
+      udp_close(lease->soc);
+      break;
+    }
   }
-  if(recv->cookie != hton32(DHCP_MGC_CKE)) {
-    errorf("DHCP magic cookie not detected, invalid DHCP packet");
-    return -1;
-  }
-  if(recv->options[2] != DHCP_MSG_OFFER) {
-    errorf("DHCP OFFER does not received");
-    return -1;
-  }
-  debugf(YELLOW "DHCP OFFER" WHITE " received");
-  lease->state = DHCP_STATE_REQUESTING;
 
-  // send DHCP REQUEST
-  hdr->ciaddr = lease->iface->unicast;
-  hdr->secs = recv->secs;
-  local.addr = lease->iface->unicast;
-  hdr->options[2] = DHCP_MSG_REQUEST;
-  hdr->options[3] = DHCP_OPT_END;
-  memset(&hdr->options[4], 0, 56);
-  udp_sendto(soc, (uint8_t *)hdr, len, &foreign);
-  debugf(YELLOW "DHCP REQUEST" WHITE " sent");
-
-  // DHCP ACK receive
-  rlen = udp_recvfrom(soc, (uint8_t *)recv, sizeof(*recv), NULL);
-  if(rlen == -1) {
-    return -1;
-  }
-  if(recv->cookie != hton32(DHCP_MGC_CKE)) {
-    errorf("DHCP magic cookie not detected, invalid DHCP packet");
-    return -1;
-  }
-  if(recv->options[2] != DHCP_MSG_ACK) {
-    errorf("DHCP ACK does not received");
-    return -1;
-  }
-  infof(YELLOW "DHCP ACK" WHITE " received, DHCP configulation success");
- 
   // update iface
   mutex_lock(&mutex);
-  ip_iface_update(iface, recv->yiaddr, recv->options[5]);
+  ip_iface_update(iface, lease->ciaddr, lease->subnet);
+  char addr[IP_ADDR_STR_LEN];
+  ip_addr_ntop(lease->router, addr, sizeof(addr));
+  ip_route_set_default_gateway(lease->iface, addr);
   mutex_unlock(&mutex);
 
-  return 0;  
+  return 0;
 }
 
-int 
-dhcp_send(struct dhcp_lease *lease, int type)
+void 
+dhcp_update(void)
 {
-  return 0;
-}
+  struct dhcp_lease *lease;
+  struct timeval now, diff;
+  struct ip_iface *iface;
+  char addr[IP_ADDR_STR_LEN];
 
-
-int 
-dhcp_init() {
-  return 0;
+  gettimeofday(&now, NULL);
+  for(lease = leases; lease; lease = lease->next) {
+    timersub(&now, &lease->leasebegin, &diff);
+    if(diff.tv_sec > lease->leasetime.tv_sec) {
+      /* lease expired */
+      mutex_lock(&mutex);
+      errorf("DHCP expired, addr=%s", ip_addr_ntop(lease->iface->unicast, addr, sizeof(addr)));
+      ip_iface_update(lease->iface, IP_ADDR_ANY, IP_ADDR_ANY);
+      leases = lease->next;
+      iface = lease->iface;
+      memory_free(lease);
+      mutex_unlock(&mutex);
+      dhcp_begin(iface);
+      continue;
+    }
+    /* renew and rebind */
+    if(diff.tv_sec > (lease->leasetime.tv_sec)*0.5) {
+      lease->soc = udp_open();
+      if(lease->soc == -1) {
+        errorf("udp_open() failure");
+        continue;
+      }
+      struct ip_endpoint local;
+      local.addr = lease->iface->unicast;
+      local.port = hton16(DHCP_SRC_PORT);
+      if(udp_bind(lease->soc, &local) == -1) {
+        errorf("udp_bind() failure");
+        continue;
+      }
+      /* lease renewing, dst is unicast */
+      lease->state = DHCP_STATE_RENEWING;
+      if(diff.tv_sec > (lease->leasetime.tv_sec)*0.5) {
+        /* lease rebinding, dst is broadcast */
+        lease->state = DHCP_STATE_REBINDING;
+      }
+      dhcp_send(lease);
+      dhcp_recv(lease);
+    }
+  }
 }

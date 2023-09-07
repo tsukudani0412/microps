@@ -189,7 +189,7 @@ ip_route_del(ip_addr_t network, ip_addr_t netmask, struct ip_iface *iface)
     return NULL;
   }
   parent = routes;
-  for(route = routes; route; route++) {
+  for(route = routes; route; route = route->next) {
     if(route->network == network) {
       if(route->netmask == netmask) {
         if(parent == routes) {
@@ -289,9 +289,7 @@ ip_iface_update(struct ip_iface *iface, ip_addr_t unicast, ip_addr_t netmask)
   char addr2[IP_ADDR_STR_LEN];
   char addr3[IP_ADDR_STR_LEN];
 
-  if(iface->unicast != IP_ADDR_ANY) {
-    ip_route_del(iface->netmask & iface->unicast, iface->unicast, iface);
-  }
+  ip_route_del(iface->netmask & iface->unicast, iface->netmask, iface);
 
   iface->unicast = unicast;
   iface->netmask = netmask;
@@ -302,7 +300,7 @@ ip_iface_update(struct ip_iface *iface, ip_addr_t unicast, ip_addr_t netmask)
     ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
   }
 
-  infof("updated: dev=" GREEN "%s" WHITE" , unicast=" RED"%s" WHITE ", netmask=%s, broadcast=" RED"%s" WHITE, NET_IFACE(iface)->dev->name, 
+  infof("updated: dev=" GREEN "%s" WHITE" , unicast=" RED"%s" WHITE ", netmask=" YELLOW "%s" WHITE ", broadcast=" RED"%s" WHITE, NET_IFACE(iface)->dev->name, 
       ip_addr_ntop(iface->unicast, addr1, sizeof(addr1)),
       ip_addr_ntop(iface->netmask, addr2, sizeof(addr2)),
       ip_addr_ntop(iface->broadcast, addr3, sizeof(addr3)));
@@ -326,11 +324,9 @@ ip_iface_register(struct net_device *dev, struct ip_iface *iface)
   ifaces = iface;
 
   // add connected route
-  if(iface->unicast != IP_ADDR_ANY) {
-    ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
-  }
+  ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
 
-  infof("registered: dev=" GREEN "%s" WHITE" , unicast=" RED"%s" WHITE ", netmask=%s, broadcast=" RED"%s" WHITE, dev->name, 
+  infof("registered: dev=" GREEN "%s" WHITE" , unicast=" RED"%s" WHITE ", netmask=" YELLOW "%s" WHITE ", broadcast=" RED"%s" WHITE, dev->name, 
       ip_addr_ntop(iface->unicast, addr1, sizeof(addr1)),
       ip_addr_ntop(iface->netmask, addr2, sizeof(addr2)),
       ip_addr_ntop(iface->broadcast, addr3, sizeof(addr3)));
