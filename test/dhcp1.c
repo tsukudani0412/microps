@@ -59,7 +59,6 @@ setup(void)
     errorf("ether_tap_init() failure");
     return -1;
   }
-  //iface = ip_iface_alloc(ETHER_TAP_IP_ADDR, ETHER_TAP_NETMASK);
   iface = ip_iface_alloc("0.0.0.0", "0.0.0.0");
   if(!iface) {
     errorf("ip_iface_alloc() failure");
@@ -69,10 +68,6 @@ setup(void)
     errorf("ip_iface_register() failure");
     return -1;
   } 
-  if(ip_route_set_default_gateway(iface, DEFAULT_GATEWAY) == -1) {
-    errorf("ip_route_set_default_gateway() failure");
-    return -1;
-  }
   if(net_run() == -1) {
     errorf("net_run() failure");
     return -1;
@@ -96,8 +91,15 @@ cleanup(void)
 int
 main(int atgc, char *argv[])
 {
+  int count = 0;
+
   setup();
-  while(1) {
+  while(!terminate) {
+    count++;
+    if(count > 30) {
+      dhcp_update();
+      count = 0;
+    }
     sleep(1);
   }
   cleanup();
