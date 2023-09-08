@@ -212,8 +212,8 @@ sock_sendto(int id, const void *buf, size_t n, const struct sockaddr *addr, int 
   }
   switch(s->family) {
   case AF_INET:
-    ((struct sockaddr_in *)addr)->sin_addr = ep.addr;
-    ((struct sockaddr_in *)addr)->sin_port = ep.port;
+    ep.addr = ((struct sockaddr_in *)addr)->sin_addr;
+    ep.port = ((struct sockaddr_in *)addr)->sin_port;
     return udp_sendto(s->desc, (uint8_t *)buf, n, &ep);
   }
   return -1;

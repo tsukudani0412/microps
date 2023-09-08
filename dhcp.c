@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <errno.h>
 
 #include "ether.h"
 #include "platform.h"
@@ -12,7 +13,7 @@
 #include "net.h"
 #include "dhcp.h"
 #include "ip.h"
-#include "udp.h"
+#include "sock.h"
 
 #define DHCP_HRD_HTYPE_ETHER 0x0001
 
@@ -130,11 +131,11 @@ int
 dhcp_send(struct dhcp_lease *lease)
 {
   struct dhcp_hdr *hdr;
-  struct ip_endpoint foreign;
+  struct sockaddr_in foreign = { .sin_family=AF_INET };
   int len;
 
-  foreign.addr = IP_ADDR_BROADCAST;
-  foreign.port = hton16(DHCP_DST_PORT);
+  foreign.sin_addr = IP_ADDR_BROADCAST;
+  foreign.sin_port = hton16(DHCP_DST_PORT);
   
   hdr = memory_alloc(sizeof(*hdr)); // IP_PAYLOAD_SIZE_MAX - UDP header size
   if(!hdr) {
@@ -165,7 +166,7 @@ dhcp_send(struct dhcp_lease *lease)
     debugf(YELLOW "DHCP DISCOVER" WHITE " sent");
     break;
   case DHCP_STATE_RENEWING:
-    foreign.addr = lease->siaddr;
+    foreign.sin_addr = lease->siaddr;
     /* fall through */
   case DHCP_STATE_REQUESTING:
   case DHCP_STATE_REBINDING:
@@ -181,14 +182,15 @@ dhcp_send(struct dhcp_lease *lease)
     debugf(YELLOW "DHCP REQUEST" WHITE " sent");
     break;
   }
-  return udp_sendto(lease->soc, (uint8_t *)hdr, len, &foreign);
+  return sock_sendto(lease->soc, (uint8_t *)hdr, len, (struct sockaddr *)&foreign, sizeof(foreign));
 }
 
 int
 dhcp_recv(struct dhcp_lease *lease) 
 {
   struct dhcp_hdr *hdr;
-  int len, leasesec;
+  struct sockaddr_in foreign;
+  int len, leasesec, foreignlen;
   struct timeval now;
 
   hdr = memory_alloc(sizeof(*hdr)); 
@@ -196,7 +198,8 @@ dhcp_recv(struct dhcp_lease *lease)
     errorf("memory_alloc() failure");
     return -1;
   }
-  len = udp_recvfrom(lease->soc, (uint8_t *)hdr, sizeof(*hdr), NULL);
+  foreignlen = sizeof(foreign);
+  len = sock_recvfrom(lease->soc, (uint8_t *)hdr, sizeof(*hdr), (struct sockaddr *)&foreign, &foreignlen);
   if(len == -1) {
     return -1;
   }
@@ -259,8 +262,8 @@ dhcp_begin(struct ip_iface *iface)
 {
   struct dhcp_hdr *recv;
   struct dhcp_lease *lease;
-  struct ip_endpoint local;
-  struct timeval now, diff, timeout;
+  struct sockaddr_in local = { .sin_family=AF_INET };
+  struct timeval now, diff, timeout, packet_timeout;
   int len, rlen;
 
 BEGIN:
@@ -272,15 +275,22 @@ BEGIN:
   }
 
   // open udp socket
-  local.addr = IP_ADDR_ANY;
-  local.port = hton16(DHCP_SRC_PORT);
-  lease->soc = udp_open();
+  local.sin_addr = IP_ADDR_ANY;
+  local.sin_port = hton16(DHCP_SRC_PORT);
+  lease->soc = sock_open(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if(lease->soc == -1) {
-    errorf("udp_open() failure");
+    errorf("sock_open() failure");
     return -1;
   }
-  if(udp_bind(lease->soc, &local) == -1) {
-    errorf("udp_bind() failure");
+  // set udp timeout
+  packet_timeout.tv_sec = DHCP_TIMEOUT / 2;
+  packet_timeout.tv_usec = 0;
+  if(sock_setopt(lease->soc, SOL_SOCKET, SO_RCVTIMEO, (const char*)&packet_timeout, sizeof(packet_timeout)) == -1) {
+    errorf("sock_setopt() failure");
+    return -1;
+  }
+  if(sock_bind(lease->soc, (struct sockaddr *)&local, sizeof(local)) == -1) {
+    errorf("sock_bind() failure");
     return -1;
   }
   lease->next = leases;
@@ -299,11 +309,14 @@ BEGIN:
       return -1;
     }
     if(dhcp_send(lease) == -1) {
+      memory_free(lease);
       goto BEGIN;
     }
-    dhcp_recv(lease);
+    if(dhcp_recv(lease) == -1) {
+      continue;
+    }
     if(lease->state == DHCP_STATE_BOUND) {
-      udp_close(lease->soc);
+      sock_close(lease->soc);
       break;
     }
   }
@@ -323,7 +336,8 @@ void
 dhcp_update(void)
 {
   struct dhcp_lease *lease;
-  struct timeval now, diff;
+  struct timeval now, diff, timeout, packet_timeout;
+  struct sockaddr_in local = { .sin_family=AF_INET };
   struct ip_iface *iface;
   char addr[IP_ADDR_STR_LEN];
 
@@ -344,16 +358,24 @@ dhcp_update(void)
     }
     /* renew and rebind */
     if(diff.tv_sec > (lease->leasetime.tv_sec)*0.5) {
-      lease->soc = udp_open();
+      lease->soc = sock_open(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
       if(lease->soc == -1) {
-        errorf("udp_open() failure");
+        errorf("sock_open() failure");
         continue;
       }
-      struct ip_endpoint local;
-      local.addr = lease->iface->unicast;
-      local.port = hton16(DHCP_SRC_PORT);
-      if(udp_bind(lease->soc, &local) == -1) {
-        errorf("udp_bind() failure");
+      gettimeofday(&now, NULL);
+      timeout = now;
+      timeout.tv_sec += DHCP_TIMEOUT;
+      packet_timeout.tv_sec = DHCP_TIMEOUT / 2;
+      packet_timeout.tv_usec = 0;
+      if(sock_setopt(lease->soc, SOL_SOCKET, SO_RCVTIMEO, (const char *)&packet_timeout, sizeof(packet_timeout)) == -1) {
+        errorf("sock_setopt() failure");
+        continue;
+      }
+      local.sin_addr = lease->iface->unicast;
+      local.sin_port = hton16(DHCP_SRC_PORT);
+      if(sock_bind(lease->soc, (struct sockaddr *)&local, sizeof(local)) == -1) {
+        errorf("sock_bind() failure");
         continue;
       }
       /* lease renewing, dst is unicast */
@@ -362,8 +384,24 @@ dhcp_update(void)
         /* lease rebinding, dst is broadcast */
         lease->state = DHCP_STATE_REBINDING;
       }
-      dhcp_send(lease);
-      dhcp_recv(lease);
+      while(1) {
+        gettimeofday(&now, NULL);
+        if(timercmp(&now, &timeout, >)) {
+          errorf("DHCP timeout");
+          break;
+        }
+        if(dhcp_send(lease) == -1) {
+          continue;
+        }
+        if(dhcp_recv(lease) == -1) {
+          continue;
+        }
+        if(lease->state == DHCP_STATE_BOUND) {
+          infof("DHCP UPDATE success");
+          sock_close(lease->soc);
+          break;
+        }   
+      }
     }
   }
 }
