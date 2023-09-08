@@ -533,13 +533,8 @@ ip_output(uint8_t protocol, const uint8_t *data, size_t len, ip_addr_t src, ip_a
     return -1;
   }
 
-  /* MUSCLE SOLUTION */
-  if(dst == IP_ADDR_BROADCAST) {
-    nexthop = IP_ADDR_BROADCAST;
-  }
-
   id = ip_generate_id();
-  if(ip_output_core(iface, protocol, data, len, src, dst, nexthop, id, 0) == -1) {
+  if(ip_output_core(iface, protocol, data, len, iface->unicast, dst, nexthop, id, 0) == -1) {
     errorf("ip_output_core() failure");
     return -1;
   }
