@@ -131,6 +131,7 @@ int
 dhcp_send(struct dhcp_lease *lease)
 {
   struct dhcp_hdr *hdr;
+  struct timeval now;
   struct sockaddr_in foreign = { .sin_family=AF_INET };
   int len;
 
@@ -149,11 +150,11 @@ dhcp_send(struct dhcp_lease *lease)
   hdr->htype = DHCP_HRD_HTYPE_ETHER;
   hdr->hlen = ETHER_ADDR_LEN;
   hdr->xid = lease->xid;
-  hdr->flags = hton16(DHCP_FLAG_BROADCAST);
   memcpy(hdr->chaddr, NET_IFACE(lease->iface)->dev->addr, NET_IFACE(lease->iface)->dev->hlen);
   hdr->cookie = hton32(DHCP_MGC_CKE);
   switch(lease->state) {
   case DHCP_STATE_SELECTING:
+    hdr->flags = hton16(DHCP_FLAG_BROADCAST);
     hdr->options[0] = DHCP_OPT_MSG_TYPE;
     hdr->options[1] = 1;
     hdr->options[2] = DHCP_MSG_DISCOVER;
@@ -170,8 +171,9 @@ dhcp_send(struct dhcp_lease *lease)
     /* fall through */
   case DHCP_STATE_REQUESTING:
   case DHCP_STATE_REBINDING:
+    gettimeofday(&now, NULL);
     hdr->ciaddr = lease->iface->unicast;
-    hdr->secs = lease->leasetime.tv_sec;
+    hdr->secs = hton32(lease->leasetime.tv_sec - (now.tv_sec - lease->leasebegin.tv_sec));
     hdr->options[0] = DHCP_OPT_MSG_TYPE;
     hdr->options[1] = 1;
     hdr->options[2] = DHCP_MSG_REQUEST;
@@ -217,7 +219,7 @@ dhcp_recv(struct dhcp_lease *lease)
     }
     debugf(YELLOW "DHCP OFFER" WHITE " received");
     lease->ciaddr = hdr->yiaddr;
-    lease->siaddr = hdr->siaddr;
+    lease->siaddr = foreign.sin_addr;
     // parse options
     for(int i = 0; hdr->options[i] != 0xff; i = i+(hdr->options[i+1])+2) {
       switch(hdr->options[i]) {
@@ -316,6 +318,7 @@ BEGIN:
       continue;
     }
     if(lease->state == DHCP_STATE_BOUND) {
+      gettimeofday(&lease->leasebegin, NULL);
       sock_close(lease->soc);
       break;
     }
@@ -329,6 +332,7 @@ BEGIN:
   ip_route_set_default_gateway(lease->iface, addr);
   mutex_unlock(&mutex);
 
+  infof("DHCP BOUND success, addr=" RED "%s" WHITE, ip_addr_ntop(lease->ciaddr, addr, sizeof(addr)));
   return 0;
 }
 
@@ -354,7 +358,7 @@ dhcp_update(void)
       memory_free(lease);
       mutex_unlock(&mutex);
       dhcp_begin(iface);
-      continue;
+      return;
     }
     /* renew and rebind */
     if(diff.tv_sec > (lease->leasetime.tv_sec)*0.5) {
@@ -380,7 +384,7 @@ dhcp_update(void)
       }
       /* lease renewing, dst is unicast */
       lease->state = DHCP_STATE_RENEWING;
-      if(diff.tv_sec > (lease->leasetime.tv_sec)*0.5) {
+      if(diff.tv_sec > (lease->leasetime.tv_sec)*0.75) {
         /* lease rebinding, dst is broadcast */
         lease->state = DHCP_STATE_REBINDING;
       }
@@ -398,6 +402,7 @@ dhcp_update(void)
         }
         if(lease->state == DHCP_STATE_BOUND) {
           infof("DHCP UPDATE success");
+          gettimeofday(&lease->leasebegin, NULL);
           sock_close(lease->soc);
           break;
         }   

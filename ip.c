@@ -296,9 +296,7 @@ ip_iface_update(struct ip_iface *iface, ip_addr_t unicast, ip_addr_t netmask)
   iface->broadcast = iface->unicast | ~iface->netmask;
   
   // add connected route
-  if(iface->unicast != IP_ADDR_ANY) {
-    ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
-  }
+  ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
 
   infof("updated: dev=" GREEN "%s" WHITE" , unicast=" RED"%s" WHITE ", netmask=" YELLOW "%s" WHITE ", broadcast=" RED"%s" WHITE, NET_IFACE(iface)->dev->name, 
       ip_addr_ntop(iface->unicast, addr1, sizeof(addr1)),

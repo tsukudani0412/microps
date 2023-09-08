@@ -121,7 +121,7 @@ udp_pcb_select(ip_addr_t addr, uint16_t port)
 
   for(pcb = pcbs; pcb < tailof(pcbs); pcb++) {
     if(pcb->state == UDP_PCB_STATE_OPEN) {
-      if((pcb->local.addr == IP_ADDR_ANY || addr == IP_ADDR_ANY || pcb->local.addr == addr) && pcb->local.port == port) {
+      if((pcb->local.addr == IP_ADDR_ANY || addr == IP_ADDR_BROADCAST || pcb->local.addr == addr) && pcb->local.port == port) {
         return pcb;
       }
     }
