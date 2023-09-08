@@ -8,6 +8,7 @@
 #include "util.h"
 #include "net.h"
 #include "ip.h"
+#include "dhcp.h"
 #include "icmp.h"
 #include "udp.h"
 #include "tcp.h"
@@ -58,7 +59,8 @@ setup(void)
     errorf("ether_tap_init() failure");
     return -1;
   }
-  iface = ip_iface_alloc(ETHER_TAP_IP_ADDR, ETHER_TAP_NETMASK);
+  //iface = ip_iface_alloc(ETHER_TAP_IP_ADDR, ETHER_TAP_NETMASK);
+  iface = ip_iface_alloc("0.0.0.0", "0.0.0.0");
   if(!iface) {
     errorf("ip_iface_alloc() failure");
     return -1;
@@ -73,6 +75,10 @@ setup(void)
   }
   if(net_run() == -1) {
     errorf("net_run() failure");
+    return -1;
+  }
+  if(dhcp_begin(iface) == -1) {
+    errorf("dhcp_begin() failure");
     return -1;
   }
 return 0;
@@ -90,31 +96,10 @@ cleanup(void)
 int
 main(int atgc, char *argv[])
 {
-  struct ip_endpoint local, foreign;
-  int soc;
-  uint8_t buf[2048];
-  ssize_t ret;
-
-  if(setup() == -1) {
-    errorf("setup() failure");
-    return -1;
+  setup();
+  while(1) {
+    sleep(1);
   }
-  ip_endpoint_pton("192.0.2.2:7", &local);
-  ip_endpoint_pton("192.0.2.1:10007", &foreign);
-  soc = tcp_open_rfc793(&local, &foreign, 1);
-  if(soc == -1) {
-    errorf("tcp_open_rfc793() failure");
-    return -1;
-  }
-  while(!terminate) {
-    ret = tcp_receive(soc, buf, sizeof(buf));
-    if(ret <= 0) {
-      break;
-    }
-    hexdump(stderr, buf, ret);
-    tcp_send(soc, buf, ret);
-  }
-  tcp_close(soc);
   cleanup();
   return 0;
 }

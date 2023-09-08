@@ -1,4 +1,3 @@
-#include <asm-generic/errno-base.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -6,6 +5,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <time.h>
 
 #include "net.h"
 #include "platform.h"
@@ -103,6 +103,7 @@ struct tcp_pcb {
   struct sched_ctx ctx;
   struct queue_head queue; /* retransmit queue */
   struct timeval tw_timer;
+  struct timeval recv_timeout;
   struct tcp_pcb *parent;
   struct queue_head backlog;
 };
@@ -1022,9 +1023,33 @@ int tcp_open(void)
     return -1;
   }
   pcb->mode = TCP_PCB_MODE_SOCKET;
+  pcb->recv_timeout.tv_sec = 0;
+  pcb->recv_timeout.tv_usec = 0;
   id = tcp_pcb_id(pcb);
   mutex_unlock(&mutex);
   return id;
+}
+
+int
+tcp_set_timeout(int id, struct timeval *timeout)
+{
+  struct tcp_pcb *pcb, *exist;
+
+  mutex_lock(&mutex);
+  pcb = tcp_pcb_get(id);
+  if(!pcb) {
+    errorf("pcb not found");
+    mutex_unlock(&mutex);
+    return -1;
+  }
+  if(pcb->mode != TCP_PCB_MODE_SOCKET) {
+    errorf("not opend in socket mode");
+    mutex_unlock(&mutex);
+    return -1;
+  }
+  pcb->recv_timeout = *timeout;
+  mutex_unlock(&mutex);
+  return 0;
 }
 
 int 
@@ -1307,7 +1332,10 @@ ssize_t
 tcp_receive(int id, uint8_t *buf, size_t size)
 {
   struct tcp_pcb *pcb;
+  struct timeval now, abstime;
+  struct timespec ts_abstime;
   size_t remain, len;
+  int ret;
 
   mutex_lock(&mutex);
   pcb = tcp_pcb_get(id);
@@ -1334,10 +1362,26 @@ RETRY:
   case TCP_PCB_STATE_FIN_WAIT2:
     remain = sizeof(pcb->buf) - pcb->rcv.wnd;
     if(!remain) {
-      if(sched_sleep(&pcb->ctx, &mutex, NULL) == -1) {
+      if(pcb->recv_timeout.tv_sec == 0 && pcb->recv_timeout.tv_usec == 0) {
+        ret = sched_sleep(&pcb->ctx, &mutex, NULL);
+      } else {
+        gettimeofday(&now, NULL);
+        timeradd(&now, &pcb->recv_timeout, &abstime);
+        ts_abstime.tv_sec = abstime.tv_sec;
+        ts_abstime.tv_nsec = abstime.tv_usec * 1000;
+        ret = sched_sleep(&pcb->ctx, &mutex, &ts_abstime);
+      }
+      switch(ret) {
+      case -1:
         debugf("interrupted");
         mutex_unlock(&mutex);
         errno = EINTR;
+        return -1;
+      case ETIMEDOUT:
+      case EAGAIN:
+        debugf("timed out");
+        mutex_unlock(&mutex);
+        errno = ETIMEDOUT;
         return -1;
       }
       goto RETRY;

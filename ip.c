@@ -174,6 +174,43 @@ ip_route_add(ip_addr_t network, ip_addr_t netmask, ip_addr_t nexthop, struct ip_
   return route;
 }
 
+/* NOTE: must not be call after net_run() */
+static int
+ip_route_del(ip_addr_t network, ip_addr_t netmask, struct ip_iface *iface)
+{
+  struct ip_route *route, *parent;
+  char addr1[IP_ADDR_STR_LEN];
+  char addr2[IP_ADDR_STR_LEN];
+  char addr3[IP_ADDR_STR_LEN];
+
+  route = memory_alloc(sizeof(*route));
+  if(!route) {
+    errorf("memory_alloc() failure");
+    return NULL;
+  }
+  parent = routes;
+  for(route = routes; route; route++) {
+    if(route->network == network) {
+      if(route->netmask == netmask) {
+        if(parent == routes) {
+          routes = route->next;
+        } else {
+          parent->next = route->next;
+        }
+        infof("route deleted: network=" RED "%s" WHITE ", netmask=" YELLOW "%s" WHITE ", iface=" RED "%s" WHITE ", dev=" GREEN "%s" WHITE,
+            ip_addr_ntop(network, addr1, sizeof(addr1)), ip_addr_ntop(netmask, addr2, sizeof(addr2)),
+            ip_addr_ntop(iface->unicast, addr3, sizeof(addr3)), NET_IFACE(iface)->dev->name);
+        memory_free(route);
+        return 0;
+      }
+    }
+  }
+  errorf("route not found: network=" RED "%s" WHITE ", netmask=" YELLOW "%s" WHITE ", iface=" RED "%s" WHITE,
+      ip_addr_ntop(network, addr1, sizeof(addr1)), ip_addr_ntop(netmask, addr2, sizeof(addr2)),
+      ip_addr_ntop(iface->unicast, addr3, sizeof(addr3)), NET_IFACE(iface)->dev->name);
+  return -1;
+}
+
 static struct ip_route *
 ip_route_lookup(ip_addr_t dst) 
 {
@@ -245,6 +282,34 @@ ip_iface_alloc(const char *unicast, const char *netmask)
   return iface;
 }
 
+int 
+ip_iface_update(struct ip_iface *iface, ip_addr_t unicast, ip_addr_t netmask)
+{
+  char addr1[IP_ADDR_STR_LEN];
+  char addr2[IP_ADDR_STR_LEN];
+  char addr3[IP_ADDR_STR_LEN];
+
+  if(iface->unicast != IP_ADDR_ANY) {
+    ip_route_del(iface->netmask & iface->unicast, iface->unicast, iface);
+  }
+
+  iface->unicast = unicast;
+  iface->netmask = netmask;
+  iface->broadcast = iface->unicast | ~iface->netmask;
+  
+  // add connected route
+  if(iface->unicast != IP_ADDR_ANY) {
+    ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
+  }
+
+  infof("updated: dev=" GREEN "%s" WHITE" , unicast=" RED"%s" WHITE ", netmask=%s, broadcast=" RED"%s" WHITE, NET_IFACE(iface)->dev->name, 
+      ip_addr_ntop(iface->unicast, addr1, sizeof(addr1)),
+      ip_addr_ntop(iface->netmask, addr2, sizeof(addr2)),
+      ip_addr_ntop(iface->broadcast, addr3, sizeof(addr3)));
+  return 0;
+}
+
+
 /* NOTE: must not be call after net_run() */
 int 
 ip_iface_register(struct net_device *dev, struct ip_iface *iface)
@@ -261,9 +326,11 @@ ip_iface_register(struct net_device *dev, struct ip_iface *iface)
   ifaces = iface;
 
   // add connected route
-  ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
+  if(iface->unicast != IP_ADDR_ANY) {
+    ip_route_add(iface->netmask & iface->unicast, iface->netmask, IP_ADDR_ANY, iface);
+  }
 
-  infof("registered: dev=%s, unicast=%s, netmask=%s, broadcast=%s", dev->name, 
+  infof("registered: dev=" GREEN "%s" WHITE" , unicast=" RED"%s" WHITE ", netmask=%s, broadcast=" RED"%s" WHITE, dev->name, 
       ip_addr_ntop(iface->unicast, addr1, sizeof(addr1)),
       ip_addr_ntop(iface->netmask, addr2, sizeof(addr2)),
       ip_addr_ntop(iface->broadcast, addr3, sizeof(addr3)));
@@ -447,10 +514,11 @@ ip_output(uint8_t protocol, const uint8_t *data, size_t len, ip_addr_t src, ip_a
   ip_addr_t nexthop;
   uint16_t id;
 
-  if(src == IP_ADDR_ANY && dst == IP_ADDR_BROADCAST) {
-    errorf("source address is required for boroadcast address");
-    return -1;
-  } 
+  //if(src == IP_ADDR_ANY && dst == IP_ADDR_BROADCAST) {
+  //  errorf("source address is required for boroadcast address");
+  //  return -1;
+  //} 
+
   route = ip_route_lookup(dst);
   if(!route) {
     errorf("no route to host, addr=" RED "%s" WHITE, ip_addr_ntop(dst, addr, sizeof(addr)));
@@ -468,8 +536,14 @@ ip_output(uint8_t protocol, const uint8_t *data, size_t len, ip_addr_t src, ip_a
         NET_IFACE(iface)->dev->name, NET_IFACE(iface)->dev->mtu, IP_HDR_SIZE_MIN + len);
     return -1;
   }
+
+  /* MUSCLE SOLUTION */
+  if(dst == IP_ADDR_BROADCAST) {
+    nexthop = IP_ADDR_BROADCAST;
+  }
+
   id = ip_generate_id();
-  if(ip_output_core(iface, protocol, data, len, iface->unicast, dst, nexthop, id, 0) == -1) {
+  if(ip_output_core(iface, protocol, data, len, src, dst, nexthop, id, 0) == -1) {
     errorf("ip_output_core() failure");
     return -1;
   }

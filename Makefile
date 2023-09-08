@@ -12,6 +12,7 @@ OBJS = util.o \
 			 udp.o \
 			 tcp.o \
 			 sock.o \
+			 dhcp.o \
 
 TESTS = test/step0.exe \
 				test/step1.exe \
@@ -42,6 +43,8 @@ TESTS = test/step0.exe \
 				test/step25.exe \
 				test/step27.exe \
 				test/step28.exe \
+				test/sock_to1.exe \
+				test/dhcp1.exe \
 
 CFLAGS := $(CFLAGS) -g -W -Wall -Wno-unused-parameter -iquote .
 

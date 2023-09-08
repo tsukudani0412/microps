@@ -2,15 +2,14 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <signal.h>
+#include <string.h>
 #include <unistd.h>
 #include <errno.h>
 
 #include "util.h"
 #include "net.h"
 #include "ip.h"
-#include "icmp.h"
-#include "udp.h"
-#include "tcp.h"
+#include "sock.h"
 
 #include "driver/loopback.h"
 #include "driver/ether_tap.h"
@@ -90,8 +89,10 @@ cleanup(void)
 int
 main(int atgc, char *argv[])
 {
-  struct ip_endpoint local, foreign;
-  int soc;
+  struct sockaddr_in local = { .sin_family=AF_INET };
+  struct ip_endpoint foreign;
+  struct timeval timeout;
+  int soc, foreignlen;
   uint8_t buf[2048];
   ssize_t ret;
 
@@ -99,22 +100,35 @@ main(int atgc, char *argv[])
     errorf("setup() failure");
     return -1;
   }
-  ip_endpoint_pton("192.0.2.2:7", &local);
-  ip_endpoint_pton("192.0.2.1:10007", &foreign);
-  soc = tcp_open_rfc793(&local, &foreign, 1);
+
+  local.sin_port = hton16(7);
+  soc = sock_open(AF_INET, SOCK_DGRAM, IPPROTO_TCP);
+
+  timeout.tv_sec = 5;
+  timeout.tv_usec = 0;
+  errorf("%d", sock_setopt(soc, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(timeout)));
+ 
+  if(sock_bind(soc, (struct sockaddr *)&local, sizeof(local)) == -1) {
+    errorf("sock_bind() failure");
+    return -1;
+  }
+
   if(soc == -1) {
-    errorf("tcp_open_rfc793() failure");
+    errorf("sock_open() failure");
     return -1;
   }
   while(!terminate) {
-    ret = tcp_receive(soc, buf, sizeof(buf));
-    if(ret <= 0) {
-      break;
+    ret = sock_recvfrom(soc, buf, sizeof(buf), (struct sockaddr *)&foreign, &foreignlen);
+    if(ret == -1) {
+      if(errno == EINTR) {
+        continue;
+      } else {
+        return -1;
+      }
     }
     hexdump(stderr, buf, ret);
-    tcp_send(soc, buf, ret);
   }
-  tcp_close(soc);
+  sock_close(soc);
   cleanup();
   return 0;
 }

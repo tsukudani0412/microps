@@ -16,6 +16,9 @@
 #define AF_INET     PF_INET
 #define AF_INET6    PF_INET6
 
+#define SOL_SOCKET  0
+#define SO_RCVTIMEO 0
+
 #define SOCK_STREAM 1
 #define SOCK_DGRAM  2
 
@@ -55,6 +58,8 @@ extern int
 sock_open(int domain, int type, int protocol);
 extern int
 sock_close(int id);
+extern int
+sock_setopt(int id, int type, int option, const char *option_value, int option_len);
 extern ssize_t
 sock_recvfrom(int id, void *buf, size_t n, struct sockaddr *addr, int *addrlen);
 extern ssize_t

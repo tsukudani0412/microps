@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/time.h>
 
 #include "util.h"
 #include "net.h"
@@ -136,6 +137,36 @@ sock_close(int id)
     return -1;
   }
   return sock_free(s);
+}
+
+int
+sock_setopt(int id, int type, int option, const char *option_value, int option_len)
+{
+  struct sock *s;
+  
+  s = sock_get(id);
+  if(!s) {
+    errorf("sock not found");
+    return -1;
+  }
+  switch(type) {
+  case SOL_SOCKET:
+    switch(option) {
+    case SO_RCVTIMEO:
+      debugf("set SO_RCVTIMEO: %dsec, %dusec", ((struct timeval *)option_value)->tv_sec, ((struct timeval *)option_value)->tv_usec);
+      switch(s->type) {
+      case SOCK_STREAM:
+        tcp_set_timeout(id, (struct timeval *)option_value);
+        break;
+      case SOCK_DGRAM:
+        udp_set_timeout(id, (struct timeval *)option_value);
+        break;
+      default:
+        return -1;
+      }
+    }
+  }
+  return 0;
 }
 
 ssize_t 

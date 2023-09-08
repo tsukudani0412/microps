@@ -60,6 +60,8 @@ ip_route_get_iface(ip_addr_t dst);
 extern struct ip_iface *
 ip_iface_alloc(const char *addr, const char *netmask);
 extern int
+ip_iface_update(struct ip_iface *iface, ip_addr_t unicast, ip_addr_t netmask);
+extern int
 ip_iface_register(struct net_device *dev, struct ip_iface *iface);
 extern struct ip_iface *
 ip_iface_select(ip_addr_t addr);

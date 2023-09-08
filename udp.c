@@ -41,6 +41,7 @@ struct udp_pcb {
   int state;
   struct ip_endpoint local;
   struct queue_head queue; /* receive queue */
+  struct timeval recv_timeout;
   struct sched_ctx ctx;
 };
 
@@ -82,6 +83,8 @@ udp_pcb_alloc(void)
   for(pcb = pcbs; pcb < tailof(pcbs); pcb++) {
     if(pcb->state == UDP_PCB_STATE_FREE) {
       pcb->state = UDP_PCB_STATE_OPEN;
+      pcb->recv_timeout.tv_sec = 0;
+      pcb->recv_timeout.tv_usec = 0;
       sched_ctx_init(&pcb->ctx);
       return pcb;
     }
@@ -148,7 +151,6 @@ udp_pcb_id(struct udp_pcb *pcb)
   return indexof(pcbs, pcb);
 }
 
-
 static void 
 udp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct ip_iface *iface)
 {
@@ -184,7 +186,7 @@ udp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct 
       ip_addr_ntop(src, addr1, sizeof(addr1)), ntoh16(hdr->src),
       ip_addr_ntop(dst, addr2, sizeof(addr2)), ntoh16(hdr->dst),
       len, len - sizeof(*hdr));
-  udp_dump(data, len);
+  //udp_dump(data, len);
   mutex_lock(&mutex);
   pcb = udp_pcb_select(dst, hdr->dst);
   if(!pcb) {
@@ -240,7 +242,7 @@ udp_output(struct ip_endpoint *src, struct ip_endpoint *dst, const uint8_t *data
       ip_addr_ntop(src->addr, ep1, sizeof(ep1)), ntoh16(hdr->src),
       ip_addr_ntop(dst->addr, ep2, sizeof(ep2)), ntoh16(hdr->dst),
       total, len);
-  udp_dump((uint8_t *)hdr, total);
+  //udp_dump((uint8_t *)hdr, total);
   if(ip_output(IP_PROTOCOL_UDP, (uint8_t *)hdr, total, src->addr, dst->addr) == -1) {
     errorf("ip_output() failure");
     return -1;
@@ -295,6 +297,23 @@ udp_open(void)
   }
   mutex_unlock(&mutex);
   return udp_pcb_id(pcb);
+}
+
+int
+udp_set_timeout(int id, struct timeval *timeout)
+{
+  struct udp_pcb *pcb;
+
+  mutex_lock(&mutex);
+  pcb = udp_pcb_get(id);
+  if(!pcb) {
+    mutex_unlock(&mutex);
+    errorf("udp_pcb_get() failure");
+    return -1;
+  }
+  pcb->recv_timeout = *timeout;
+  mutex_unlock(&mutex);
+  return 0;
 }
 
 int udp_close(int id)
@@ -391,6 +410,8 @@ udp_recvfrom(int id, uint8_t *buf, size_t size, struct ip_endpoint *foreign)
 {
   struct udp_pcb *pcb;
   struct udp_queue_entry *entry;
+  struct timeval now, abstime;
+  struct timespec ts_abstime;
   ssize_t len;
   int err;
 
@@ -407,11 +428,28 @@ udp_recvfrom(int id, uint8_t *buf, size_t size, struct ip_endpoint *foreign)
       break;
     }
     /* wait to be woken up by sched_wakeup() or sched_interrupt() */
-    err = sched_sleep(&pcb->ctx, &mutex, NULL);
-    if(err) {
+    int errno_bk;
+    if(pcb->recv_timeout.tv_sec == 0 && pcb->recv_timeout.tv_usec == 0) {
+      err = sched_sleep(&pcb->ctx, &mutex, NULL);
+    } else {
+      gettimeofday(&now, NULL);
+      timeradd(&now, &pcb->recv_timeout, &abstime);
+      ts_abstime.tv_sec = abstime.tv_sec;
+      ts_abstime.tv_nsec = abstime.tv_usec * 1000;
+
+      err = sched_sleep(&pcb->ctx, &mutex, &ts_abstime);
+    }
+    switch(err) {
+    case -1:
       debugf("interrupted");
       mutex_unlock(&mutex);
       errno = EINTR;
+      return -1;
+    case ETIMEDOUT:
+    case EAGAIN:
+      debugf("timed out");
+      mutex_unlock(&mutex);
+      errno = ETIMEDOUT;
       return -1;
     }
     if(pcb->state == UDP_PCB_STATE_CLOSING) {

@@ -21,6 +21,8 @@ tcp_receive(int id, uint8_t *buf, size_t size);
 extern int
 tcp_open(void);
 extern int
+tcp_set_timeout(int id, struct timeval *timeout);
+extern int
 tcp_bind(int id, struct ip_endpoint *local);
 extern int
 tcp_connect(int id, struct ip_endpoint *foreign);
